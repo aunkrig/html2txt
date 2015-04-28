@@ -23,7 +23,6 @@
 			</doclet>
 			<fileset file="src/de/unkrig/html2txt/Main.java" />
 			<sourcepath path="src" />
-			<link offline="true" packagelistloc="../de.unkrig.html2txt_dist/mirror/javadoc/package-list" />
 		</javadoc>
 		
 		<java classpathref="html2txt.classpath" classname="de.unkrig.html2txt.Main">
