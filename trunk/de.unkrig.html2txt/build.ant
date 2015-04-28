@@ -1,0 +1,36 @@
+<project>
+	<target name="usage.txt">
+		<delete dir="tmp" />
+		<mkdir dir="tmp" />
+		
+		<path id="html2txt.classpath">
+			<pathelement location="bin" />
+			<pathelement location="../de.unkrig.commons.file/bin"         />
+			<pathelement location="../de.unkrig.commons.io/bin"           />
+			<pathelement location="../de.unkrig.commons.lang/bin"         />
+			<pathelement location="../de.unkrig.commons.nullanalysis/bin" />
+			<pathelement location="../de.unkrig.commons.text/bin"         />
+		</path>
+
+		<javadoc destdir="tmp" classpathref="html2txt.classpath">
+			<doclet name="de.unkrig.doclet.main.MainDoclet">
+				<path>
+					<pathelement location="../de.unkrig.doclet.main/bin" />
+					<pathelement location="../de.unkrig.commons.lang/bin" />
+					<pathelement location="../de.unkrig.commons.doclet/bin" />
+					<pathelement location="../de.unkrig.commons.file/bin" />
+				</path>
+			</doclet>
+			<fileset file="src/de/unkrig/html2txt/Main.java" />
+			<sourcepath path="src" />
+			<link offline="true" packagelistloc="../de.unkrig.html2txt_dist/mirror/javadoc/package-list" />
+		</javadoc>
+		
+		<java classpathref="html2txt.classpath" classname="de.unkrig.html2txt.Main">
+			<arg value="tmp/de/unkrig/html2txt/Main.main.html" />
+			<arg value="src/de/unkrig/html2txt/usage.txt" />
+		</java>
+		
+		<delete dir="tmp" />
+	</target>
+</project>

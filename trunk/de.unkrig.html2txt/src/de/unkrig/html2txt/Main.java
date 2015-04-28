@@ -29,6 +29,16 @@ package de.unkrig.html2txt;
 import java.io.File;
 import java.io.PrintWriter;
 
+import javax.xml.transform.SourceLocator;
+import javax.xml.transform.TransformerException;
+
+import org.xml.sax.Locator;
+import org.xml.sax.SAXParseException;
+
+import de.unkrig.commons.io.IoUtil;
+import de.unkrig.commons.text.xml.XmlUtil;
+import de.unkrig.html2txt.Html2Txt.HtmlException;
+
 /**
  * A command line interface for {@link Html2Txt}.
  */
@@ -44,12 +54,12 @@ class Main {
      *   <dd>
      *     Converts the HTML document in the <var>input-file</var> to plain text, and writes it to STDOUT.
      *   </dd>
-     *   <dt>{@code html2txt} <var>input-file output-file</var></dt>
+     *   <dt>{@code html2txt} <var>input-file</var> <var>output-file</var></dt>
      *   <dd>
      *     Converts the HTML document in the <var>input-file</var> to plain text, and writes it to the
      *     <var>output-file</var>.
      *   </dd>
-     *   <dt>{@code html2tSxt -help}</dt>
+     *   <dt>{@code html2txt -help}</dt>
      *   <dd>
      *     Prints this text.
      *   </dd>
@@ -58,25 +68,75 @@ class Main {
     public static void
     main(String[] args) throws Exception {
 
-        switch (args.length)  {
+        if (args.length == 1 && "-help".equals(args[0])) {
+            IoUtil.copy(Main.class.getClassLoader().getResourceAsStream("de/unkrig/html2txt/usage.txt"), System.out);
+            return;
+        }
 
-        case 1:
-            {
-                File inputFile = new File(args[0]);
-                Html2Txt.html2txt(inputFile, new PrintWriter(System.out));
+        try {
+            switch (args.length)  {
+
+            case 1:
+                {
+                    File inputFile = new File(args[0]);
+                    new Html2Txt().html2txt(inputFile, new PrintWriter(System.out));
+                }
+                break;
+
+            case 2:
+                {
+                    File inputFile  = new File(args[0]);
+                    File outputFile = new File(args[1]);
+                    new Html2Txt().html2txt(inputFile, outputFile);
+                }
+                break;
+
+            default:
+                System.err.println("Invalid number of command line arguments; try \"-help\".");
+                System.exit(1);
             }
-            break;
+        } catch (SAXParseException e) {
 
-        case 2:
-            {
-                File inputFile  = new File(args[0]);
-                File outputFile = new File(args[1]);
-                Html2Txt.html2txt(inputFile, outputFile);
+            System.err.println(
+                "Line "
+                + e.getLineNumber()
+                + ", column "
+                + e.getColumnNumber()
+                + ": "
+                + e.getMessage()
+            );
+            System.exit(1);
+        } catch (TransformerException e) {
+
+            SourceLocator locator = e.getLocator();
+            if (locator == null) {
+                System.err.println(e.getMessage());
+            } else {
+                System.err.println(
+                    "Line "
+                    + locator.getLineNumber()
+                    + ", column "
+                    + locator.getColumnNumber()
+                    + ": "
+                    + e.getMessage()
+                );
             }
-            break;
+            System.exit(1);
+        } catch (HtmlException e) {
 
-        default:
-            System.err.println("Invalid number of command line arguments; try \"-help\".");
+            Locator l = XmlUtil.getLocation(e.getNode());
+            if (l == null) {
+                System.err.println(e.getMessage());
+            } else {
+                System.err.println(
+                    "Line "
+                    + l.getLineNumber()
+                    + ", column "
+                    + l.getColumnNumber()
+                    + ": "
+                    + e.getMessage()
+                );
+            }
             System.exit(1);
         }
     }

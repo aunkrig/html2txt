@@ -35,37 +35,112 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.NoSuchElementException;
 
+import javax.xml.parsers.DocumentBuilder;
 import javax.xml.parsers.DocumentBuilderFactory;
+import javax.xml.parsers.ParserConfigurationException;
+import javax.xml.transform.TransformerException;
 
 import org.w3c.dom.Document;
 import org.w3c.dom.Element;
 import org.w3c.dom.Node;
 import org.w3c.dom.NodeList;
+import org.xml.sax.ErrorHandler;
+import org.xml.sax.SAXException;
+import org.xml.sax.SAXParseException;
 
 import de.unkrig.commons.file.FileUtil;
 import de.unkrig.commons.io.LineUtil;
+import de.unkrig.commons.lang.AssertionUtil;
 import de.unkrig.commons.lang.StringUtil;
 import de.unkrig.commons.lang.protocol.Consumer;
 import de.unkrig.commons.lang.protocol.ConsumerWhichThrows;
+import de.unkrig.commons.nullanalysis.Nullable;
+import de.unkrig.commons.text.xml.XmlUtil;
 
 /**
  * A command
  */
-public final
+public
 class Html2Txt {
 
-    private Html2Txt() {}
+    static { AssertionUtil.enableAssertionsForThisClass(); }
+
+    /** All methods of theis {@link ErrorHandler} throw the {@link SAXException} they recieve. */
+    @SuppressWarnings("null")
+    public static final ErrorHandler
+    SIMPLE_SAX_ERROR_HANDLER = new ErrorHandler() {
+        @Override public void warning(@Nullable SAXParseException e)    throws SAXParseException { throw e; }
+        @Override public void fatalError(@Nullable SAXParseException e) throws SAXParseException { throw e; }
+        @Override public void error(@Nullable SAXParseException e)      throws SAXParseException { throw e; }
+    };
+
+    /** All methods of theis {@link HtmlErrorHandler} throw the {@link HtmlException} they recieve. */
+    public static final HtmlErrorHandler
+    SIMPLE_HTML_ERROR_HANDLER = new HtmlErrorHandler() {
+        @Override public void warning(HtmlException e)    throws HtmlException { throw e; }
+        @Override public void fatalError(HtmlException e) throws HtmlException { throw e; }
+        @Override public void error(HtmlException e)      throws HtmlException { throw e; }
+    };
+
+    private HtmlErrorHandler htmlErrorHandler = Html2Txt.SIMPLE_HTML_ERROR_HANDLER;
+
+    /**
+     * Representation of an exceptional condition that occurred during HTML processing. This exception is always
+     * related to a node in the HTML DOM.
+     *
+     * @see #getNode()
+     */
+    public static
+    class HtmlException extends Exception {
+
+        private static final long serialVersionUID = 1L;
+
+        private final Node node;
+
+        public
+        HtmlException(Node node, String message) {
+            super(message);
+            this.node = node;
+        }
+
+        public Node
+        getNode() { return this.node; }
+    }
+
+    /** Handles {@link HtmlException}s. */
+    public
+    interface HtmlErrorHandler {
+        // SUPPRESS CHECKSTYLE JavadocMethod:3
+        void warning(HtmlException e)    throws HtmlException;
+        void fatalError(HtmlException e) throws HtmlException;
+        void error(HtmlException e)      throws HtmlException;
+    }
+
+    /**
+     * Sets a custom {@link HtmlErrorHandler} on this object. The default handler is {@link
+     * #SIMPLE_HTML_ERROR_HANDLER}.
+     */
+    public void
+    setErrorHandler(HtmlErrorHandler htmlErrorHandler) {
+        this.htmlErrorHandler = htmlErrorHandler;
+    }
 
     /**
      * Reads, scans and parses the HTML document in the {@code inputFile}, generates a plain text document, and
      * writes it to the {@code output}.
      */
-    public static void
-    html2txt(File inputFile, Writer output) throws Exception {
+    public void
+    html2txt(File inputFile, Writer output)
+    throws ParserConfigurationException, SAXException, TransformerException, HtmlException {
 
         final Document document;
         {
-            document = DocumentBuilderFactory.newInstance().newDocumentBuilder().parse(inputFile);
+            DocumentBuilder db = DocumentBuilderFactory.newInstance().newDocumentBuilder();
+            db.setErrorHandler(Html2Txt.SIMPLE_SAX_ERROR_HANDLER);
+
+//            document = db.parse(inputFile);
+            document = XmlUtil.parse(db, inputFile);
+
             document.getDocumentElement().normalize();
         }
 
@@ -76,35 +151,37 @@ class Html2Txt {
 
         PrintWriter pw = output instanceof PrintWriter ? (PrintWriter) output : new PrintWriter(output);
 
-        Html2Txt.html2txt(document, LineUtil.lineConsumer(pw));
+        this.html2txt(document, LineUtil.lineConsumer(pw));
     }
 
     /**
      * Reads, scans and parses the HTML document in the {@code inputFile}, generates a plain text document, and
      * writes it to the {@code outputFile}.
      */
-    public static void
+    public void
     html2txt(final File inputFile, File outputFile) throws Exception {
 
         FileUtil.printToFile(
             outputFile,
             Charset.forName("ISO8859-1"),
             new ConsumerWhichThrows<PrintWriter, Exception>() {
-                @Override public void consume(PrintWriter pw) throws Exception { Html2Txt.html2txt(inputFile, pw); }
+
+                @Override public void
+                consume(PrintWriter pw) throws Exception { Html2Txt.this.html2txt(inputFile, pw); }
             }
         );
     }
 
-    private static void
-    html2txt(Document document, Consumer<String> lc) {
+    private void
+    html2txt(Document document, Consumer<String> lc) throws HtmlException {
 
-        Node body = Html2Txt.getElementByTagName(document, "body");
+        Node body = this.getElementByTagName(document, "body");
 
-        Html2Txt.formatBlocks(0, 80, Html2Txt.getChildNodes(body), lc);
+        this.formatBlocks(0, 80, Html2Txt.getChildNodes(body), lc);
     }
 
-    private static void
-    formatBlocks(int leftMargin, int pageWidth, Iterable<Node> nodes, Consumer<String> lc) {
+    private void
+    formatBlocks(int leftMargin, int pageWidth, Iterable<Node> nodes, Consumer<String> lc) throws HtmlException {
 
         List<Node> inlineNodes = new ArrayList<Node>();
         for (Node n : nodes) {
@@ -113,43 +190,44 @@ class Html2Txt {
             } else
             if (Html2Txt.isBlockNode(n)) {
                 if (!inlineNodes.isEmpty()) {
-                    Html2Txt.formatBlock(leftMargin, pageWidth, inlineNodes, lc);
+                    this.formatBlock(leftMargin, pageWidth, inlineNodes, lc);
                     inlineNodes.clear();
                 }
                 lc.consume("");
-                Html2Txt.formatBlockNode(leftMargin, pageWidth, n, lc);
+                this.formatBlockNode(leftMargin, pageWidth, n, lc);
             } else
             {
-                throw new RuntimeException("Unexpected node \"" + n + "\"in <body>");
+                this.htmlErrorHandler.error(new HtmlException(n, "Unexpected node in <body>"));
             }
         }
         if (!inlineNodes.isEmpty()) {
-            Html2Txt.formatBlock(leftMargin, pageWidth, inlineNodes, lc);
+            this.formatBlock(leftMargin, pageWidth, inlineNodes, lc);
             inlineNodes.clear();
         }
 
     }
 
-    private static void
-    formatBlockNode(int leftMargin, int pageWidth, Node n, Consumer<String> lc) {
+    private void
+    formatBlockNode(int leftMargin, int pageWidth, Node n, Consumer<String> lc) throws HtmlException {
 
         if (n.getNodeType() != Node.ELEMENT_NODE) {
-            throw new RuntimeException("\"" + n + "\" is not an element");
+            this.htmlErrorHandler.error(new HtmlException(n, "Node is not an element"));
+            return;
         }
         Element e = (Element) n;
 
         String tagName = e.getTagName();
         if ("p".equals(tagName)) {
-            Html2Txt.formatBlock(leftMargin, pageWidth, Html2Txt.getChildNodes(n), lc);
+            this.formatBlock(leftMargin, pageWidth, Html2Txt.getChildNodes(n), lc);
         } else
         if ("h2".equals(tagName)) {
-            String text = Html2Txt.getBlock(Html2Txt.getChildNodes(n));
+            String text = this.getBlock(Html2Txt.getChildNodes(n));
             lc.consume(text);
             lc.consume(StringUtil.repeat(text.length(), '='));
             lc.consume("");
         } else
         if ("h3".equals(tagName)) {
-            String text = Html2Txt.getBlock(Html2Txt.getChildNodes(n));
+            String text = this.getBlock(Html2Txt.getChildNodes(n));
             lc.consume(text);
             lc.consume(StringUtil.repeat(text.length(), '-'));
             lc.consume("");
@@ -163,35 +241,39 @@ class Html2Txt {
                 ) continue;
 
                 if (dle.getNodeType() != Node.ELEMENT_NODE) {
-                    throw new RuntimeException("Unexpected node \"" + dle + "\" in <dl>");
+                    this.htmlErrorHandler.error(new HtmlException(n, "Unexpected node in <dl>"));
+                    continue;
                 }
                 Element dlee = (Element) dle;
 
                 String dleTagName = dlee.getTagName();
                 if ("dt".equals(dleTagName)) {
-                    Html2Txt.formatBlocks(leftMargin + 2, pageWidth, Html2Txt.getChildNodes(dlee), lc);
+                    this.formatBlocks(leftMargin + 2, pageWidth, Html2Txt.getChildNodes(dlee), lc);
                 } else
                 if ("dd".equals(dleTagName)) {
-                    Html2Txt.formatBlocks(leftMargin + 6, pageWidth, Html2Txt.getChildNodes(dlee), lc);
+                    this.formatBlocks(leftMargin + 6, pageWidth, Html2Txt.getChildNodes(dlee), lc);
                 } else
                 {
-                    throw new RuntimeException("Unexpected element \"" + dlee + "\" in <dl>");
+                    this.htmlErrorHandler.error(new HtmlException(n, "Unexpected element in <dl>"));
                 }
             }
         } else
         {
-            throw new RuntimeException("\"" + n + "\" is not a recognized block element");
+            this.htmlErrorHandler.error(new HtmlException(n, "Not a recognized block element"));
         }
     }
 
-    private static void
-    formatBlock(int leftMargin, int pageWidth, Iterable<Node> nodes, Consumer<String> lc) {
+    private void
+    formatBlock(int leftMargin, int pageWidth, Iterable<Node> nodes, Consumer<String> lc) throws HtmlException {
 
-        String block = Html2Txt.getBlock(nodes).trim();
+        String block = this.getBlock(nodes).trim();
         if (block.length() == 0) return;
 
         int maxChars = pageWidth - leftMargin;
-        if (maxChars < 5) throw new RuntimeException("Page too narrow");
+        if (maxChars < 5) {
+            this.htmlErrorHandler.error(new HtmlException(nodes.iterator().next(), "Page too narrow"));
+            return;
+        }
         while (block.length() > maxChars) {
             int idx1 = block.lastIndexOf(' ', maxChars);
             if (idx1 == -1) break;
@@ -205,8 +287,8 @@ class Html2Txt {
         lc.consume(StringUtil.repeat(leftMargin, ' ') + block);
     }
 
-    private static String
-    getBlock(Iterable<Node> nodes) {
+    private String
+    getBlock(Iterable<Node> nodes) throws HtmlException {
         StringBuilder sb = new StringBuilder();
 
         for (Node n : nodes) {
@@ -222,18 +304,18 @@ class Html2Txt {
                 String tagName = e.getTagName();
                 if ("var".equals(tagName)) {
                     sb.append('<');
-                    sb.append(Html2Txt.getBlock(Html2Txt.getChildNodes(e)));
+                    sb.append(this.getBlock(Html2Txt.getChildNodes(e)));
                     sb.append('>');
                 } else
                 if ("code".equals(tagName)) {
-                    sb.append(Html2Txt.getBlock(Html2Txt.getChildNodes(e)));
+                    sb.append(this.getBlock(Html2Txt.getChildNodes(e)));
                 } else
                 {
-                    throw new RuntimeException("Unexpected element \"" + e + "\" in block");
+                    this.htmlErrorHandler.error(new HtmlException(n, "Unexpected element in block"));
                 }
             } else
             {
-                throw new RuntimeException("Unexpected node \"" + n + "\" in block");
+                this.htmlErrorHandler.error(new HtmlException(n, "Unexpected node in block"));
             }
         }
         return sb.toString();
@@ -268,14 +350,19 @@ class Html2Txt {
         return false;
     }
 
-    private static Node
-    getElementByTagName(final Document document, String tagName) {
+    private Node
+    getElementByTagName(final Document document, String tagName) throws HtmlException {
         NodeList nl = document.getElementsByTagName(tagName);
         if (nl.getLength() == 0) {
-            throw new RuntimeException("\"<" + tagName + ">\" element missing");
+            HtmlException he = new HtmlException(document, "Unexpected node in block");
+            this.htmlErrorHandler.fatalError(he);
+            throw he;
         }
         if (nl.getLength() > 1) {
-            throw new RuntimeException("Only one \"<" + tagName + ">\" element allowed");
+            this.htmlErrorHandler.error(new HtmlException(
+                nl.item(1),
+                "Only one \"<" + tagName + ">\" element allowed"
+            ));
         }
         return nl.item(0);
     }
