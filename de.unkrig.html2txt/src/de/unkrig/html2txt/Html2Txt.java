@@ -31,9 +31,12 @@ import java.io.PrintWriter;
 import java.io.Writer;
 import java.nio.charset.Charset;
 import java.util.ArrayList;
-import java.util.Iterator;
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
-import java.util.NoSuchElementException;
+import java.util.Map;
+import java.util.Set;
 
 import javax.xml.parsers.DocumentBuilder;
 import javax.xml.parsers.DocumentBuilderFactory;
@@ -43,7 +46,6 @@ import javax.xml.transform.TransformerException;
 import org.w3c.dom.Document;
 import org.w3c.dom.Element;
 import org.w3c.dom.Node;
-import org.w3c.dom.NodeList;
 import org.xml.sax.ErrorHandler;
 import org.xml.sax.SAXException;
 import org.xml.sax.SAXParseException;
@@ -56,6 +58,7 @@ import de.unkrig.commons.lang.protocol.Consumer;
 import de.unkrig.commons.lang.protocol.ConsumerWhichThrows;
 import de.unkrig.commons.nullanalysis.Nullable;
 import de.unkrig.commons.text.xml.XmlUtil;
+import de.unkrig.commons.util.collections.CollectionUtil;
 
 /**
  * A command
@@ -65,7 +68,7 @@ class Html2Txt {
 
     static { AssertionUtil.enableAssertionsForThisClass(); }
 
-    /** All methods of theis {@link ErrorHandler} throw the {@link SAXException} they recieve. */
+    /** All methods of this {@link ErrorHandler} throw the {@link SAXException} they recieve. */
     @SuppressWarnings("null")
     public static final ErrorHandler
     SIMPLE_SAX_ERROR_HANDLER = new ErrorHandler() {
@@ -83,6 +86,17 @@ class Html2Txt {
     };
 
     private HtmlErrorHandler htmlErrorHandler = Html2Txt.SIMPLE_HTML_ERROR_HANDLER;
+
+    private int pageLeftMargin  /*= 0*/;
+    private int pageRightMargin /*= 0*/;
+    private int pageWidth;
+    {
+        try {
+            this.pageWidth = Integer.parseInt(System.getenv("COLUMNS"));
+        } catch (Exception e) {
+            this.pageWidth = 80;
+        }
+    }
 
     /**
      * Representation of an exceptional condition that occurred during HTML processing. This exception is always
@@ -116,6 +130,11 @@ class Html2Txt {
         void error(HtmlException e)      throws HtmlException;
     }
 
+    public
+    interface InlineElementFormatter {
+        void format(Element e, StringBuilder result) throws HtmlException;
+    }
+
     /**
      * Sets a custom {@link HtmlErrorHandler} on this object. The default handler is {@link
      * #SIMPLE_HTML_ERROR_HANDLER}.
@@ -124,6 +143,15 @@ class Html2Txt {
     setErrorHandler(HtmlErrorHandler htmlErrorHandler) {
         this.htmlErrorHandler = htmlErrorHandler;
     }
+
+    public void
+    setPageWidth(int pageWidth) { this.pageWidth = pageWidth; }
+
+    public void
+    setPageLeftMargin(int pageLeftMargin) { this.pageLeftMargin = pageLeftMargin; }
+
+    public void
+    setPageRightMargin(int pageRightMargin) { this.pageRightMargin = pageRightMargin; }
 
     /**
      * Reads, scans and parses the HTML document in the {@code inputFile}, generates a plain text document, and
@@ -175,65 +203,101 @@ class Html2Txt {
     private void
     html2txt(Document document, Consumer<String> lc) throws HtmlException {
 
-        Node body = this.getElementByTagName(document, "body");
+        // Some block tags render vertical space, which we want to compress.
+        lc = LineUtil.compressEmptyLines(lc);
 
-        this.formatBlocks(0, 80, Html2Txt.getChildNodes(body), lc);
+        Element documentElement = document.getDocumentElement();
+
+        // Iff the document is structured like
+        //
+        //     <html>
+        //       ...
+        //       <body>...</body>
+        //       ...
+        //       <body>...</body>
+        //       ...
+        //     </html>
+        //     ...
+        //
+        // , then the result is the formatted <body>s.
+        if ("html".equals(documentElement.getNodeName())) {
+            for (Node n : XmlUtil.iterable(documentElement.getChildNodes())) {
+                if (n.getNodeType() == Node.ELEMENT_NODE && "body".equals(n.getNodeName())) {
+                    Element bodyElement = (Element) n;
+                    this.formatBlocks(
+                        this.pageLeftMargin,
+                        this.pageWidth - this.pageLeftMargin - this.pageRightMargin,
+                        XmlUtil.iterable(bodyElement.getChildNodes()),
+                        lc
+                    );
+                }
+            }
+
+            return;
+        }
+
+        // Otherwise, assume that the document poses an HTML *fragment*, and the top level nodes ar *blocks*.
+        this.formatBlocks(
+            this.pageLeftMargin,
+            this.pageWidth - this.pageLeftMargin - this.pageRightMargin,
+            Collections.singletonList(documentElement),
+            lc
+        );
     }
 
-    private void
-    formatBlocks(int leftMargin, int pageWidth, Iterable<Node> nodes, Consumer<String> lc) throws HtmlException {
+    private <N extends Node> void
+    formatBlocks(int leftMarginWidth, int measure, Iterable<N> nodes, Consumer<String> lc) throws HtmlException {
 
         List<Node> inlineNodes = new ArrayList<Node>();
         for (Node n : nodes) {
-            if (Html2Txt.isInlineNode(n)) {
+            if (n.getNodeType() == Node.TEXT_NODE) {
                 inlineNodes.add(n);
             } else
-            if (Html2Txt.isBlockNode(n)) {
+            if (this.isHtmlInlineElement(n)) {
+                inlineNodes.add(n);
+            } else
+            if (Html2Txt.isHtmlBlockElement(n)) {
                 if (!inlineNodes.isEmpty()) {
-                    this.formatBlock(leftMargin, pageWidth, inlineNodes, lc);
+                    this.formatBlock(leftMarginWidth, measure, inlineNodes, lc);
                     inlineNodes.clear();
                 }
                 lc.consume("");
-                this.formatBlockNode(leftMargin, pageWidth, n, lc);
+                this.formatBlockElement(leftMarginWidth, measure, (Element) n, lc);
             } else
             {
-                this.htmlErrorHandler.error(new HtmlException(n, "Unexpected node in <body>"));
+                this.htmlErrorHandler.error(
+                    new HtmlException(n, "Unexpected node \"" + XmlUtil.toString(n) + "\" in <body>")
+                );
             }
         }
         if (!inlineNodes.isEmpty()) {
-            this.formatBlock(leftMargin, pageWidth, inlineNodes, lc);
+            this.formatBlock(leftMarginWidth, measure, inlineNodes, lc);
             inlineNodes.clear();
         }
 
     }
 
     private void
-    formatBlockNode(int leftMargin, int pageWidth, Node n, Consumer<String> lc) throws HtmlException {
+    formatBlockElement(int leftMargin, int measure, Element element, Consumer<String> lc) throws HtmlException {
 
-        if (n.getNodeType() != Node.ELEMENT_NODE) {
-            this.htmlErrorHandler.error(new HtmlException(n, "Node is not an element"));
-            return;
-        }
-        Element e = (Element) n;
-
-        String tagName = e.getTagName();
+        String tagName = element.getTagName();
         if ("p".equals(tagName)) {
-            this.formatBlock(leftMargin, pageWidth, Html2Txt.getChildNodes(n), lc);
+            this.formatBlock(leftMargin, measure, XmlUtil.iterable(element.getChildNodes()), lc);
         } else
         if ("h2".equals(tagName)) {
-            String text = this.getBlock(Html2Txt.getChildNodes(n));
+            String text = this.getBlock(XmlUtil.iterable(element.getChildNodes()));
             lc.consume(text);
             lc.consume(StringUtil.repeat(text.length(), '='));
             lc.consume("");
         } else
         if ("h3".equals(tagName)) {
-            String text = this.getBlock(Html2Txt.getChildNodes(n));
+            String text = this.getBlock(XmlUtil.iterable(element.getChildNodes()));
             lc.consume(text);
             lc.consume(StringUtil.repeat(text.length(), '-'));
             lc.consume("");
         } else
         if ("dl".equals(tagName)) {
-            for (Node dle : Html2Txt.getChildNodes(e)) {
+            for (Node dle : XmlUtil.iterable(element.getChildNodes())) {
 
                 if (
                     dle.getNodeType() == Node.TEXT_NODE
@@ -241,52 +305,81 @@ class Html2Txt {
                 ) continue;
 
                 if (dle.getNodeType() != Node.ELEMENT_NODE) {
-                    this.htmlErrorHandler.error(new HtmlException(n, "Unexpected node in <dl>"));
+                    this.htmlErrorHandler.error(new HtmlException(element, "Unexpected node in <dl>"));
                     continue;
                 }
                 Element dlee = (Element) dle;
 
                 String dleTagName = dlee.getTagName();
                 if ("dt".equals(dleTagName)) {
-                    this.formatBlocks(leftMargin + 2, pageWidth, Html2Txt.getChildNodes(dlee), lc);
+                    this.formatBlocks(leftMargin + 2, measure - 2, XmlUtil.iterable(dlee.getChildNodes()), lc);
                 } else
                 if ("dd".equals(dleTagName)) {
-                    this.formatBlocks(leftMargin + 6, pageWidth, Html2Txt.getChildNodes(dlee), lc);
+                    this.formatBlocks(leftMargin + 6, measure - 6, XmlUtil.iterable(dlee.getChildNodes()), lc);
                 } else
                 {
-                    this.htmlErrorHandler.error(new HtmlException(n, "Unexpected element in <dl>"));
+                    this.htmlErrorHandler.error(new HtmlException(element, "Unexpected element in <dl>"));
                 }
             }
         } else
         {
-            this.htmlErrorHandler.error(new HtmlException(n, "Not a recognized block element"));
+            this.htmlErrorHandler.error(new HtmlException(element, "Not a recognized block element"));
         }
     }
 
     private void
-    formatBlock(int leftMargin, int pageWidth, Iterable<Node> nodes, Consumer<String> lc) throws HtmlException {
+    formatBlock(int leftMargin, int measure, Iterable<Node> nodes, Consumer<String> lc) throws HtmlException {
 
-        String block = this.getBlock(nodes).trim();
-        if (block.length() == 0) return;
-
-        int maxChars = pageWidth - leftMargin;
-        if (maxChars < 5) {
-            this.htmlErrorHandler.error(new HtmlException(nodes.iterator().next(), "Page too narrow"));
-            return;
-        }
-        while (block.length() > maxChars) {
-            int idx1 = block.lastIndexOf(' ', maxChars);
-            if (idx1 == -1) break;
-            int idx2;
-            for (idx2 = idx1; idx2 > 0 && block.charAt(idx2 - 1) == ' '; idx2--);
-            if (idx2 == 0) break;
-            lc.consume(StringUtil.repeat(leftMargin, ' ') + block.substring(0, idx2));
-            block = block.substring(idx1 + 1);
-        }
-
-        lc.consume(StringUtil.repeat(leftMargin, ' ') + block);
+        this.formatBlock(leftMargin, measure, this.getBlock(nodes), lc, nodes.iterator().next());
     }
 
+    /**
+     * The given <var>text</var> is word-wrapped such that each output line begins with <var>leftMargin</var> spaces,
+     * followed by up to <var>measure</var> characters. If the <var>text</var> contains very long words, then some of
+     * the output lines may be longer than "<var>leftMarginWidth</var> + <var>measure</var>".
+     * <p>
+     *   Newline characters ({@code '\n'}) appear as line breaks in the output.
+     * </p>
+     * <p>
+     *   The output lines are fed to the <var>lc</var>.
+     * </p>
+     *
+     * @param ref Is used iff an {@link HtmlException} is thrown ({@link HtmlException}s have a reference to the
+     *            "offending" node)
+     */
+    private void
+    formatBlock(int leftMargin, int measure, String text, Consumer<String> lc, Node ref) throws HtmlException {
+
+        text = text.trim();
+        if (text.length() == 0) return;
+
+        for (int nlidx = text.indexOf('\n'); nlidx != -1; nlidx = text.indexOf('\n')) {
+            this.formatBlock(leftMargin, measure, text.substring(0, nlidx), lc, ref);
+            text = text.substring(nlidx + 1);
+        }
+
+        if (measure < 5) {
+            this.htmlErrorHandler.error(new HtmlException(ref, "Page too narrow"));
+            return;
+        }
+
+        while (text.length() > measure) {
+            int idx1 = text.lastIndexOf(' ', measure);
+            if (idx1 == -1) break;
+            int idx2;
+            for (idx2 = idx1; idx2 > 0 && text.charAt(idx2 - 1) == ' '; idx2--);
+            if (idx2 == 0) break;
+            lc.consume(StringUtil.repeat(leftMargin, ' ') + text.substring(0, idx2));
+            text = text.substring(idx1 + 1);
+        }
+
+        lc.consume(StringUtil.repeat(leftMargin, ' ') + text);
+    }
+
+    /**
+     * Formats text and inline elements into one long line, except for "{@code <br />}" tags, which map into
+     * line breaks.
+     */
     private String
     getBlock(Iterable<Node> nodes) throws HtmlException {
         StringBuilder sb = new StringBuilder();
@@ -301,17 +394,13 @@ class Html2Txt {
             if (nodeType == Node.ELEMENT_NODE) {
                 Element e = (Element) n;
 
-                String tagName = e.getTagName();
-                if ("var".equals(tagName)) {
-                    sb.append('<');
-                    sb.append(this.getBlock(Html2Txt.getChildNodes(e)));
-                    sb.append('>');
-                } else
-                if ("code".equals(tagName)) {
-                    sb.append(this.getBlock(Html2Txt.getChildNodes(e)));
-                } else
-                {
-                    this.htmlErrorHandler.error(new HtmlException(n, "Unexpected element in block"));
+                InlineElementFormatter ief = this.ALL_HTML_INLINE_ELEMENTS.get(e.getTagName());
+                if (ief == null) {
+                    this.htmlErrorHandler.error(
+                        new HtmlException(n, "Unexpected element \"" + XmlUtil.toString(e) + "\" in block")
+                    );
+                } else {
+                    ief.format(e, sb);
                 }
             } else
             {
@@ -321,77 +410,266 @@ class Html2Txt {
         return sb.toString();
     }
 
+    /**
+     * "Block-Level" is categorization of HTML elements, as contrasted with "inline" elements.
+     * <p>
+     *   Block-level elements may appear only within a {@code <body>} element.
+     *   Their most significant characteristic is that they typically are formatted with a line break before and after
+     *   the element (thereby creating a stand-alone block of content). That is, they take up the width of their
+     *   containers.
+     * </p>
+     * <p>
+     *   The distinction of block-level vs. inline elements is used in HTML specifications up  to 4.01. In HTML5, this
+     *   binary distinction is replaced with a more complex set of content categories. The "block-level" category
+     *   roughly corresponds to the category of flow content in HTML5, while "inline" corresponds to phrasing content,
+     *   but there are additional categories.
+     * </p>
+     * <p>
+     *   There are a couple of key differences between block-level elements and inline elements:
+     * </p>
+     * <dl>
+     *   <dt>Formatting</dt>
+     *   <dd>
+     *     By default, block-level elements begin on new lines.
+     *   </dd>
+     *   <dt>Content model</dt>
+     *   <dd>
+     *     Generally, block-level elements may contain inline elements and other block-level elements. Inherent in
+     *     this structural distinction is the idea that block elements create "larger" structures than inline elements.
+     *   </dd>
+     * </dl>
+     * <p>
+     *   Quoted from <a href="https://developer.mozilla.org/en-US/docs/Web/HTML/Block-level_elements">Mozilla Developer
+     *   Network, "Block-level Elements"</a>.
+     * </p>
+     *
+     * <p>
+     *   See also <a href="http://www.w3schools.com/html/html_blocks.asp">HTML Tutorial, section "HTML Block
+     *   Elements"</a>.
+     * </p>
+     *
+     * @return Whether the given {@code node} is one of the "block elements" by the HTML standard
+     */
     private static boolean
-    isBlockNode(Node n) {
+    isHtmlBlockElement(Node node) {
 
-        if (n.getNodeType() != Node.ELEMENT_NODE) return false;
-        Element e = (Element) n;
+        if (node.getNodeType() != Node.ELEMENT_NODE) return false;
+        Element e = (Element) node;
 
-        String tagName = e.getTagName();
-        return (
-            "p".equals(tagName)
-            || "dl".equals(tagName)
-            || "h2".equals(tagName)
-            || "h3".equals(tagName)
-        );
+        return Html2Txt.ALL_HTML_BLOCK_ELEMENTS.contains(e.getTagName());
+    }
+    private static final Set<String> ALL_HTML_BLOCK_ELEMENTS = new HashSet<String>(Arrays.asList(
+        "address", "article", "aside", "audio", "blockquote", "canvas", "dd", "div", "dl", "fieldset", "figcaption",
+        "figure", "footer", "form", "h1", "h2", "h3", "h4", "h5", "h6", "header", "hgroup", "hr", "main", "nav",
+        "noscript", "ol", "output", "p", "pre", "section", "table", "tfoot", "ul", "video"
+    ));
+
+    /**
+     * HTML (Hypertext Markup Language) elements are usually "inline" elements or "block-level" elements.
+     * <p>
+     *   An inline element occupies only the space bounded by the tags that define the inline element.
+     * </p>
+     *
+     * <p>
+     *   Quoted from <a href="https://developer.mozilla.org/en-US/docs/Web/HTML/Inline_elemente">Mozilla Developer
+     *   Network, "Inline Elements"</a>.
+     * </p>
+     * <p>
+     *   See <a href="http://www.w3schools.com/html/html_blocks.asp">HTML Tutorial, section "HTML Block Elements"</a>.
+     * </p>
+     */
+    private boolean
+    isHtmlInlineElement(Node node) {
+
+        if (node.getNodeType() != Node.ELEMENT_NODE) return false;
+        Element e = (Element) node;
+
+        return this.ALL_HTML_INLINE_ELEMENTS.containsKey(e.getTagName());
     }
 
-    private static boolean
-    isInlineNode(Node n) {
-        short nodeType = n.getNodeType();
-        if (nodeType == Node.TEXT_NODE) return true;
-        if (nodeType == Node.ELEMENT_NODE) {
-            Element e = (Element) n;
-            if (
-                "var".equals(e.getTagName())
-                || "code".equals(e.getTagName())
-            ) return true;
-        }
-        return false;
-    }
+    private final InlineElementFormatter
+    A_FORMATTER = new InlineElementFormatter() {
 
-    private Node
-    getElementByTagName(final Document document, String tagName) throws HtmlException {
-        NodeList nl = document.getElementsByTagName(tagName);
-        if (nl.getLength() == 0) {
-            HtmlException he = new HtmlException(document, "Unexpected node in block");
-            this.htmlErrorHandler.fatalError(he);
-            throw he;
-        }
-        if (nl.getLength() > 1) {
-            this.htmlErrorHandler.error(new HtmlException(
-                nl.item(1),
-                "Only one \"<" + tagName + ">\" element allowed"
-            ));
-        }
-        return nl.item(0);
-    }
+        @Override public void
+        format(Element e, StringBuilder result) throws HtmlException {
+            String name = e.getAttribute("name");
+            String href = e.getAttribute("href");
+            if (!name.isEmpty() && href.isEmpty()) {
+                if (!Html2Txt.this.getBlock(XmlUtil.iterable(e.getChildNodes())).isEmpty()) {
+                    Html2Txt.this.htmlErrorHandler.warning(
+                        new HtmlException(e, "'<a name=\"...\" />' tag should have content")
+                    );
+                }
 
-    private static Iterable<Node>
-    getChildNodes(Node node) {
-
-        final NodeList nl = node.getChildNodes();
-        return new Iterable<Node>() {
-
-            @Override public Iterator<Node>
-            iterator() {
-                return new Iterator<Node>() {
-
-                    private int idx;
-
-                    @Override public Node
-                    next() {
-                        if (this.idx >= nl.getLength()) throw new NoSuchElementException();
-                        return nl.item(this.idx++);
-                    }
-
-                    @Override public boolean
-                    hasNext() { return this.idx < nl.getLength(); }
-
-                    @Override public void
-                    remove() { throw new UnsupportedOperationException("remove"); }
-                };
+                // '<a name="..." />' renders as "".
+                ;
+            } else
+            if (!href.isEmpty() && name.isEmpty()) {
+                result.append(Html2Txt.this.getBlock(XmlUtil.iterable(e.getChildNodes())));
+                result.append(" (see ").append(href).append(')');
+            } else
+            {
+                Html2Txt.this.htmlErrorHandler.warning(
+                    new HtmlException(e, "\"<a>\" tag has an unexpected combination of attributes")
+                );
             }
-        };
+        }
+    };
+
+    private final InlineElementFormatter
+    ABBR_FORMATTER = new InlineElementFormatter() {
+
+        @Override public void
+        format(Element e, StringBuilder result) throws HtmlException {
+
+            result.append(Html2Txt.this.getBlock(XmlUtil.iterable(e.getChildNodes())));
+
+            String title = e.getAttribute("title");
+            if (!title.isEmpty()) {
+                result.append(" (\"").append(title).append("\")");
+            }
+        }
+    };
+
+    private final InlineElementFormatter
+    BR_FORMATTER = new InlineElementFormatter() {
+
+        @Override
+        public void format(Element e, StringBuilder result) throws HtmlException {
+
+            if (e.hasChildNodes()) {
+                Html2Txt.this.htmlErrorHandler.warning(
+                    new HtmlException(e, "\"<br>\" tag should not have subelements nor contain text")
+                );
+            }
+            result.append('\n');
+        }
+    };
+
+    private final InlineElementFormatter
+    INPUT_FORMATTER = new InlineElementFormatter() {
+
+        @Override public void
+        format(Element e, StringBuilder result) {
+
+            String type = e.getAttribute("type");
+            if ("checkbox".equals(type)) {
+                result.append("checked".equals(e.getAttribute("checked")) ? "[x]" : "[ ]");
+            } else
+            if ("hidden".equals(type)) {
+                ;
+            } else
+            if ("password".equals(type)) {
+                result.append("[******]");
+            } else
+            if ("radio".equals(type)) {
+                result.append("checked".equals(e.getAttribute("checked")) ? "(o)" : "( )");
+            } else
+            if ("range".equals(type)) {
+                result.append("[RANGE-INPUT]");
+            } else
+            if ("submit".equals(type)) {
+                String label = e.getAttribute("value");
+                if (label.isEmpty()) label = "Submit";
+                result.append("[ ").append(label).append(" ]");
+            } else
+            if ("text".equals(type) || "".equals(type)) {
+                result.append('[').append(e.getAttribute("value")).append(']');
+            } else
+            {
+                result.append('[').append(type.toUpperCase()).append("-INPUT]");
+            }
+        }
+    };
+
+    private final InlineElementFormatter
+    Q_FORMATTER = new InlineElementFormatter() {
+
+        @Override public void
+        format(Element e, StringBuilder result) throws HtmlException {
+
+            final String cite = e.getAttribute("cite");
+
+            result.append('"');
+            result.append(Html2Txt.this.getBlock(XmlUtil.iterable(e.getChildNodes())));
+            result.append("\" (").append(cite).append(')');
+        }
+    };
+
+    /**
+     * Simply appends the element's formatted content, a.k.a. "ignoring a tag".
+     */
+    private final InlineElementFormatter NOP_FORMATTER = new FramingFormatter("", "");
+
+    /**
+     * Appends the <var>prefix</var>, the element's formatted content, and finally the <var>suffix</var>.
+     */
+    class FramingFormatter implements InlineElementFormatter {
+
+        private final String prefix, suffix;
+
+        public
+        FramingFormatter(String prefix, String suffix) {
+            this.prefix = prefix;
+            this.suffix = suffix;
+        }
+
+        @Override public void
+        format(Element e, StringBuilder result) throws HtmlException {
+
+            result.append(this.prefix);
+            result.append(Html2Txt.this.getBlock(XmlUtil.iterable(e.getChildNodes())));
+            result.append(this.suffix);
+        }
     }
+
+    private final InlineElementFormatter
+    NYI_FORMATTER = new InlineElementFormatter() {
+
+        @Override public void
+        format(Element e, StringBuilder result) throws HtmlException {
+
+            Html2Txt.this.htmlErrorHandler.warning(
+                new HtmlException(e, "\"<" + e.getNodeName() + ">\" is not yet implemented and thus ignored")
+            );
+
+            result.append(Html2Txt.this.getBlock(XmlUtil.iterable(e.getChildNodes())));
+        }
+    };
+
+    private final Map<String, InlineElementFormatter>
+    ALL_HTML_INLINE_ELEMENTS = CollectionUtil.<String, InlineElementFormatter>map(
+        "a",        this.A_FORMATTER,
+        "abbr",     this.ABBR_FORMATTER,
+        "acronym",  this.ABBR_FORMATTER,
+        "b",        new FramingFormatter("*", "*"),
+        "bdo",      this.NYI_FORMATTER,
+        "big",      this.NOP_FORMATTER,
+        "br",       this.BR_FORMATTER,
+        "button",   new FramingFormatter("[ ", " ]"),
+        "cite",     this.NOP_FORMATTER,
+        "code",     this.NOP_FORMATTER,
+        "dfn",      this.NOP_FORMATTER,
+        "em",       new FramingFormatter("<", ">"),
+        "i",        new FramingFormatter("<", ">"),
+        "img",      this.NYI_FORMATTER,
+        "input",    this.INPUT_FORMATTER,
+        "kbd",      new FramingFormatter("[ ", " ]"),
+        "label",    this.NOP_FORMATTER,
+        "map",      this.NYI_FORMATTER,
+        "object",   this.NYI_FORMATTER,
+        "q",        this.Q_FORMATTER,
+        "samp",     this.NOP_FORMATTER,
+        "script",   this.NYI_FORMATTER,
+        "select",   new FramingFormatter("[ ", " ]"),
+        "small",    this.NOP_FORMATTER,
+        "span",     this.NOP_FORMATTER,
+        "strong",   new FramingFormatter("*", "*"),
+        "sub",      this.NOP_FORMATTER,
+        "sup",      new FramingFormatter("^", ""),
+        "textarea", new FramingFormatter("[ ", " ]"),
+        "tt",       this.NOP_FORMATTER,
+        "u",        new FramingFormatter("_", "_"),
+        "var",      new FramingFormatter("<", ">")
+    );
 }

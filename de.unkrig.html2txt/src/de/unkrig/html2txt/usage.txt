@@ -1,10 +1,18 @@
 Usage:
+======
 
-  html2txt <input-file>
+  html2txt [ <option> ] ... <input-file>
       Converts the HTML document in the <input-file> to plain text, and writes
       it to STDOUT.
-  html2txt <input-file> <output-file>
+  html2txt [ <option> ] ... <input-file> <output-file>
       Converts the HTML document in the <input-file> to plain text, and writes
       it to the <output-file>.
-  html2txt -help
-      Prints this text.
+
+Options:
+========
+
+  -help
+      Print this text and terminate.
+  -page-width <N>
+      The maximum line length to produce. Defaults to the value of the
+      "$COLUMNS" environment variable, if set, otherwise to "80".

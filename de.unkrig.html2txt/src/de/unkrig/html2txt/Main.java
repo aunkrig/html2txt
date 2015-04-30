@@ -27,6 +27,7 @@
 package de.unkrig.html2txt;
 
 import java.io.File;
+import java.io.InputStream;
 import java.io.PrintWriter;
 
 import javax.xml.transform.SourceLocator;
@@ -48,46 +49,79 @@ class Main {
     private Main() {}
 
     /**
-     * Usage:
+     * <h2>Usage:</h2>
+     *
      * <dl>
-     *   <dt>{@code html2txt} <var>input-file</var></dt>
+     *   <dt>{@code html2txt} [ <var>option</var> ] ... <var>input-file</var></dt>
      *   <dd>
      *     Converts the HTML document in the <var>input-file</var> to plain text, and writes it to STDOUT.
      *   </dd>
-     *   <dt>{@code html2txt} <var>input-file</var> <var>output-file</var></dt>
+     *   <dt>{@code html2txt} [ <var>option</var> ] ... <var>input-file</var> <var>output-file</var></dt>
      *   <dd>
      *     Converts the HTML document in the <var>input-file</var> to plain text, and writes it to the
      *     <var>output-file</var>.
      *   </dd>
-     *   <dt>{@code html2txt -help}</dt>
+     * </dl>
+     *
+     * <h2>Options:</h2>
+     *
+     * <dl>
+     *   <dt>{@code -help}</dt>
      *   <dd>
-     *     Prints this text.
+     *     Print this text and terminate.
+     *   </dd>
+     *   <dt>{@code -page-width} <var>N</var></dt>
+     *   <dd>
+     *     The maximum line length to produce. Defaults to the value of the "{@code $COLUMNS}" environment variable,
+     *     if set, otherwise to "80".
      *   </dd>
      * </dl>
      */
     public static void
     main(String[] args) throws Exception {
 
-        if (args.length == 1 && "-help".equals(args[0])) {
-            IoUtil.copy(Main.class.getClassLoader().getResourceAsStream("de/unkrig/html2txt/usage.txt"), System.out);
-            return;
+        Html2Txt html2Txt = new Html2Txt();
+
+        int idx = 0;
+        while (idx < args.length) {
+            String arg = args[idx];
+            if (!arg.startsWith("-")) break;
+            idx++;
+            if ("-help".equals(arg)) {
+                InputStream is = Main.class.getClassLoader().getResourceAsStream("de/unkrig/html2txt/usage.txt");
+                IoUtil.copy(
+                    is,         // inputStream
+                    true,       // closeInputStream
+                    System.out, // outputStream
+                    false       // closeOutputStream
+                );
+                return;
+            } else
+            if ("-page-width".equals(arg)) {
+                html2Txt.setPageWidth(Integer.parseInt(args[idx++]));
+            } else
+            {
+                System.err.println("Invalid command line option \"" + arg + "\"; try \"-help\".");
+                System.exit(1);
+                return;
+            }
         }
 
         try {
-            switch (args.length)  {
+            switch (args.length - idx)  {
 
             case 1:
                 {
-                    File inputFile = new File(args[0]);
-                    new Html2Txt().html2txt(inputFile, new PrintWriter(System.out));
+                    File inputFile = new File(args[idx++]);
+                    html2Txt.html2txt(inputFile, new PrintWriter(System.out));
                 }
                 break;
 
             case 2:
                 {
-                    File inputFile  = new File(args[0]);
-                    File outputFile = new File(args[1]);
-                    new Html2Txt().html2txt(inputFile, outputFile);
+                    File inputFile  = new File(args[idx++]);
+                    File outputFile = new File(args[idx++]);
+                    html2Txt.html2txt(inputFile, outputFile);
                 }
                 break;
 
@@ -95,46 +129,53 @@ class Main {
                 System.err.println("Invalid number of command line arguments; try \"-help\".");
                 System.exit(1);
             }
-        } catch (SAXParseException e) {
+        } catch (SAXParseException spe) {
 
+            String publicId = spe.getPublicId();
             System.err.println(
-                "Line "
-                + e.getLineNumber()
+                (publicId != null ? publicId + ", line " : "Line ")
+                + spe.getLineNumber()
                 + ", column "
-                + e.getColumnNumber()
+                + spe.getColumnNumber()
                 + ": "
-                + e.getMessage()
+                + spe.getMessage()
+                + '.'
             );
             System.exit(1);
-        } catch (TransformerException e) {
+        } catch (TransformerException te) {
 
-            SourceLocator locator = e.getLocator();
-            if (locator == null) {
-                System.err.println(e.getMessage());
-            } else {
-                System.err.println(
-                    "Line "
-                    + locator.getLineNumber()
-                    + ", column "
-                    + locator.getColumnNumber()
-                    + ": "
-                    + e.getMessage()
-                );
-            }
-            System.exit(1);
-        } catch (HtmlException e) {
-
-            Locator l = XmlUtil.getLocation(e.getNode());
+            SourceLocator l = te.getLocator();
             if (l == null) {
-                System.err.println(e.getMessage());
+                System.err.println(te.getMessage());
             } else {
+                String publicId = l.getPublicId(); // TODO: Do we get the input file path here?
                 System.err.println(
-                    "Line "
+                    (publicId != null ? publicId + ", line " : "Line ")
+                    + ", line "
                     + l.getLineNumber()
                     + ", column "
                     + l.getColumnNumber()
                     + ": "
-                    + e.getMessage()
+                    + te.getMessage()
+                    + '.'
+                );
+            }
+            System.exit(1);
+        } catch (HtmlException he) {
+
+            Locator l = XmlUtil.getLocation(he.getNode());
+            if (l == null) {
+                System.err.println(he.getMessage());
+            } else {
+                String publicId = l.getPublicId();
+                System.err.println(
+                    (publicId != null ? publicId + ", line " : "Line ")
+                    + l.getLineNumber()
+                    + ", column "
+                    + l.getColumnNumber()
+                    + ": "
+                    + he.getMessage()
+                    + '.'
                 );
             }
             System.exit(1);
