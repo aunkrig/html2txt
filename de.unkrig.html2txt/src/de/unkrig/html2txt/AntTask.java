@@ -156,7 +156,7 @@ class AntTask extends Task {
         } else
         {
             FileUtil.asFile(
-                in.getInputStream(),                         // innputStream
+                in.getInputStream(),                         // inputStream
                 true,                                        // closeInputStream
                 "h2t",                                       // prefix
                 ".html",                                     // suffix
