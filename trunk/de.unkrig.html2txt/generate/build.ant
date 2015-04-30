@@ -10,24 +10,20 @@
 			<pathelement location="../de.unkrig.commons.lang/bin"         />
 			<pathelement location="../de.unkrig.commons.nullanalysis/bin" />
 			<pathelement location="../de.unkrig.commons.text/bin"         />
+			<pathelement location="../de.unkrig.commons.util/bin"         />
 		</path>
 
-		<javadoc destdir="tmp" classpathref="html2txt.classpath">
-			<doclet name="de.unkrig.doclet.main.MainDoclet">
-				<path>
-					<pathelement location="../de.unkrig.doclet.main/bin" />
-					<pathelement location="../de.unkrig.commons.lang/bin" />
-					<pathelement location="../de.unkrig.commons.doclet/bin" />
-					<pathelement location="../de.unkrig.commons.file/bin" />
-				</path>
-			</doclet>
+		<javadoc destdir="tmp" classpathref="html2txt.classpath" failonerror="true">
+			<doclet name="de.unkrig.doclet.main.MainDoclet" path="generate/de.unkrig.doclet.jar" />
 			<fileset file="src/de/unkrig/html2txt/Main.java" />
-			<sourcepath path="src" />
+			<classpath>
+				<pathelement location="../org.apache.ant-1.8.4/lib/ant.jar"   />
+			</classpath>
 		</javadoc>
 		
-		<java classpathref="html2txt.classpath" classname="de.unkrig.html2txt.Main">
-			<arg value="tmp/de/unkrig/html2txt/Main.main.html" />
-			<arg value="src/de/unkrig/html2txt/usage.txt" />
+		<java classpathref="html2txt.classpath" classname="de.unkrig.html2txt.Main" failonerror="true">
+			<arg value="${basedir}/tmp/de/unkrig/html2txt/Main.main.html" />
+			<arg value="${basedir}/src/de/unkrig/html2txt/usage.txt" />
 		</java>
 		
 		<delete dir="tmp" />
