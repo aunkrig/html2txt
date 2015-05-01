@@ -31,12 +31,9 @@ import java.io.PrintWriter;
 import java.io.Writer;
 import java.nio.charset.Charset;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collections;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 
 import javax.xml.parsers.DocumentBuilder;
 import javax.xml.parsers.DocumentBuilderFactory;
@@ -130,9 +127,36 @@ class Html2Txt {
         void error(HtmlException e)      throws HtmlException;
     }
 
+    /**
+     * Formats an HTML block element.
+     */
     public
-    interface InlineElementFormatter {
-        void format(Element e, StringBuilder result) throws HtmlException;
+    interface HtmlBlockElementFormatter {
+
+        /**
+         * Appends lines to the <var>result</var>.
+         * @param leftMargin TODO
+         * @param bulleting TODO
+         * @param measure TODO
+         */
+        void format(int leftMargin, Bulleting bulleting, int measure, Element element, Consumer<String> result) throws HtmlException;
+    }
+
+    /**
+     * Formats an HTML inline element.
+     */
+    public
+    interface HtmlInlineElementFormatter {
+
+        /**
+         * Appends characters to the <var>result</var>; "{@code \n}" represents a "break" ("{@code <br />}").
+         */
+        void format(Element element, StringBuilder result) throws HtmlException;
+    }
+
+    interface Bulleting {
+        String next();
+        Bulleting NONE = new Bulleting() {  @Override public String next() { return ""; } };
     }
 
     /**
@@ -226,9 +250,9 @@ class Html2Txt {
                     Element bodyElement = (Element) n;
                     this.formatBlocks(
                         this.pageLeftMargin,
+                        Bulleting.NONE,
                         this.pageWidth - this.pageLeftMargin - this.pageRightMargin,
-                        XmlUtil.iterable(bodyElement.getChildNodes()),
-                        lc
+                        XmlUtil.iterable(bodyElement.getChildNodes()), lc
                     );
                 }
             }
@@ -239,14 +263,14 @@ class Html2Txt {
         // Otherwise, assume that the document poses an HTML *fragment*, and the top level nodes ar *blocks*.
         this.formatBlocks(
             this.pageLeftMargin,
+            Bulleting.NONE,
             this.pageWidth - this.pageLeftMargin - this.pageRightMargin,
-            Collections.singletonList(documentElement),
-            lc
+            Collections.singletonList(documentElement), lc
         );
     }
 
     private <N extends Node> void
-    formatBlocks(int leftMarginWidth, int measure, Iterable<N> nodes, Consumer<String> lc) throws HtmlException {
+    formatBlocks(int leftMarginWidth, Bulleting bulleting, int measure, Iterable<N> nodes, Consumer<String> lc) throws HtmlException {
 
         List<Node> inlineNodes = new ArrayList<Node>();
         for (Node n : nodes) {
@@ -256,13 +280,13 @@ class Html2Txt {
             if (this.isHtmlInlineElement(n)) {
                 inlineNodes.add(n);
             } else
-            if (Html2Txt.isHtmlBlockElement(n)) {
+            if (this.isHtmlBlockElement(n)) {
                 if (!inlineNodes.isEmpty()) {
-                    this.formatBlock(leftMarginWidth, measure, inlineNodes, lc);
+                    this.formatBlock(leftMarginWidth, bulleting, measure, inlineNodes, lc);
                     inlineNodes.clear();
                 }
                 lc.consume("");
-                this.formatBlockElement(leftMarginWidth, measure, (Element) n, lc);
+                this.formatBlockElement(leftMarginWidth, bulleting, measure, (Element) n, lc);
             } else
             {
                 this.htmlErrorHandler.error(
@@ -271,18 +295,18 @@ class Html2Txt {
             }
         }
         if (!inlineNodes.isEmpty()) {
-            this.formatBlock(leftMarginWidth, measure, inlineNodes, lc);
+            this.formatBlock(leftMarginWidth, bulleting, measure, inlineNodes, lc);
             inlineNodes.clear();
         }
 
     }
 
     private void
-    formatBlockElement(int leftMargin, int measure, Element element, Consumer<String> lc) throws HtmlException {
+    formatBlockElement(int leftMargin, Bulleting bulleting, int measure, Element element, Consumer<String> lc) throws HtmlException {
 
         String tagName = element.getTagName();
         if ("p".equals(tagName)) {
-            this.formatBlock(leftMargin, measure, XmlUtil.iterable(element.getChildNodes()), lc);
+            this.formatBlock(leftMargin, bulleting, measure, XmlUtil.iterable(element.getChildNodes()), lc);
         } else
         if ("h2".equals(tagName)) {
             String text = this.getBlock(XmlUtil.iterable(element.getChildNodes()));
@@ -312,10 +336,10 @@ class Html2Txt {
 
                 String dleTagName = dlee.getTagName();
                 if ("dt".equals(dleTagName)) {
-                    this.formatBlocks(leftMargin + 2, measure - 2, XmlUtil.iterable(dlee.getChildNodes()), lc);
+                    this.formatBlocks(leftMargin + 2, Bulleting.NONE, measure - 2, XmlUtil.iterable(dlee.getChildNodes()), lc);
                 } else
                 if ("dd".equals(dleTagName)) {
-                    this.formatBlocks(leftMargin + 6, measure - 6, XmlUtil.iterable(dlee.getChildNodes()), lc);
+                    this.formatBlocks(leftMargin + 6, Bulleting.NONE, measure - 6, XmlUtil.iterable(dlee.getChildNodes()), lc);
                 } else
                 {
                     this.htmlErrorHandler.error(new HtmlException(element, "Unexpected element in <dl>"));
@@ -328,9 +352,9 @@ class Html2Txt {
     }
 
     private void
-    formatBlock(int leftMargin, int measure, Iterable<Node> nodes, Consumer<String> lc) throws HtmlException {
+    formatBlock(int leftMargin, Bulleting bulleting, int measure, Iterable<Node> nodes, Consumer<String> lc) throws HtmlException {
 
-        this.formatBlock(leftMargin, measure, this.getBlock(nodes), lc, nodes.iterator().next());
+        this.formatBlock(leftMargin, bulleting, measure, this.getBlock(nodes), lc, nodes.iterator().next());
     }
 
     /**
@@ -343,18 +367,18 @@ class Html2Txt {
      * <p>
      *   The output lines are fed to the <var>lc</var>.
      * </p>
-     *
+     * @param bulleting TODO
      * @param ref Is used iff an {@link HtmlException} is thrown ({@link HtmlException}s have a reference to the
      *            "offending" node)
      */
     private void
-    formatBlock(int leftMargin, int measure, String text, Consumer<String> lc, Node ref) throws HtmlException {
+    formatBlock(int leftMarginWidth, Bulleting bulleting, int measure, String text, Consumer<String> lc, Node ref) throws HtmlException {
 
         text = text.trim();
         if (text.length() == 0) return;
 
         for (int nlidx = text.indexOf('\n'); nlidx != -1; nlidx = text.indexOf('\n')) {
-            this.formatBlock(leftMargin, measure, text.substring(0, nlidx), lc, ref);
+            this.formatBlock(leftMarginWidth, bulleting, measure, text.substring(0, nlidx), lc, ref);
             text = text.substring(nlidx + 1);
         }
 
@@ -363,17 +387,34 @@ class Html2Txt {
             return;
         }
 
-        while (text.length() > measure) {
+        String bullet = bulleting.next();
+
+        for (boolean first = true; text.length() > measure; first = false) {
             int idx1 = text.lastIndexOf(' ', measure);
             if (idx1 == -1) break;
             int idx2;
             for (idx2 = idx1; idx2 > 0 && text.charAt(idx2 - 1) == ' '; idx2--);
-            if (idx2 == 0) break;
-            lc.consume(StringUtil.repeat(leftMargin, ' ') + text.substring(0, idx2));
+
+            String leftMargin;
+            if (first) {
+                if (bullet.length() + 1 < leftMarginWidth) {
+                    leftMargin = StringUtil.repeat(leftMarginWidth - bullet.length() - 1, ' ') + bullet + ' ';
+                } else {
+                    leftMargin = bullet + ' ';
+                }
+            } else {
+                leftMargin = StringUtil.repeat(leftMarginWidth, ' ');
+            }
+
+            if (idx2 == 0) {
+                lc.consume(leftMargin + text);
+                break;
+            }
+
+            lc.consume(leftMargin + text.substring(0, idx2));
+
             text = text.substring(idx1 + 1);
         }
-
-        lc.consume(StringUtil.repeat(leftMargin, ' ') + text);
     }
 
     /**
@@ -394,7 +435,7 @@ class Html2Txt {
             if (nodeType == Node.ELEMENT_NODE) {
                 Element e = (Element) n;
 
-                InlineElementFormatter ief = this.ALL_HTML_INLINE_ELEMENTS.get(e.getTagName());
+                HtmlInlineElementFormatter ief = this.ALL_HTML_INLINE_ELEMENTS.get(e.getTagName());
                 if (ief == null) {
                     this.htmlErrorHandler.error(
                         new HtmlException(n, "Unexpected element \"" + XmlUtil.toString(e) + "\" in block")
@@ -450,18 +491,204 @@ class Html2Txt {
      *
      * @return Whether the given {@code node} is one of the "block elements" by the HTML standard
      */
-    private static boolean
+    private boolean
     isHtmlBlockElement(Node node) {
 
         if (node.getNodeType() != Node.ELEMENT_NODE) return false;
         Element e = (Element) node;
 
-        return Html2Txt.ALL_HTML_BLOCK_ELEMENTS.contains(e.getTagName());
+        return this.ALL_HTML_BLOCK_ELEMENTS.containsKey(e.getTagName());
     }
-    private static final Set<String> ALL_HTML_BLOCK_ELEMENTS = new HashSet<String>(Arrays.asList(
-        "address", "article", "aside", "audio", "blockquote", "canvas", "dd", "div", "dl", "fieldset", "figcaption",
-        "figure", "footer", "form", "h1", "h2", "h3", "h4", "h5", "h6", "header", "hgroup", "hr", "main", "nav",
-        "noscript", "ol", "output", "p", "pre", "section", "table", "tfoot", "ul", "video"
+
+    private final HtmlBlockElementFormatter
+    HR_FORMATTER = new HtmlBlockElementFormatter() {
+
+        @Override public void
+        format(int leftMargin, Bulleting bulleting, int measure, Element element, Consumer<String> result) throws HtmlException {
+            result.consume(StringUtil.repeat(leftMargin, ' ') + StringUtil.repeat(measure, '-'));
+        }
+    };
+
+    private final HtmlBlockElementFormatter
+    OL_FORMATTER = new HtmlBlockElementFormatter() {
+
+        @Override public void
+        format(
+            int              leftMargin,
+            Bulleting        bulleting,
+            int              measure,
+            Element          element,
+            Consumer<String> result
+        ) throws HtmlException {
+
+            // Compute the index to start from.
+            int tmp;
+            try {
+                tmp = Integer.parseInt(element.getAttribute("start"));
+            } catch (Exception e) {
+                tmp = 1;
+            }
+            final int start = tmp;
+
+            Html2Txt.this.formatBlocks(
+                leftMargin + 5,
+                new Bulleting() {
+                    int nextValue = start;
+                    @Override public String next() { return this.nextValue++ + "."; }
+                },
+                measure - 5,
+                XmlUtil.iterable(element.getChildNodes()), result
+            );
+        }
+    };
+
+    private final HtmlBlockElementFormatter
+    UL_FORMATTER = new HtmlBlockElementFormatter() {
+
+        @Override public void
+        format(
+            int              leftMargin,
+            Bulleting        bulleting,
+            int              measure,
+            Element          element,
+            Consumer<String> result
+        ) throws HtmlException {
+            Html2Txt.this.formatBlocks(
+                leftMargin + 3,
+                new Bulleting() { @Override public String next() { return "*"; } },
+                measure - 3,
+                XmlUtil.iterable(element.getChildNodes()), result
+            );
+        }
+    };
+
+    private
+    class HeadingHtmlBlockElementFormatter implements HtmlBlockElementFormatter {
+
+        private boolean          emptyLineAbove, emptyLineBelow;
+        @Nullable private String prefix, suffix;
+        private int              underline = -1;
+
+        public
+        HeadingHtmlBlockElementFormatter(String prefix, String suffix) {
+            this.prefix = prefix;
+            this.suffix = suffix;
+        }
+
+        public
+        HeadingHtmlBlockElementFormatter(boolean emptyLineAbove, char underline, boolean emptyLineBelow) {
+            this.emptyLineAbove = emptyLineAbove;
+            this.underline      = underline;
+            this.emptyLineBelow = emptyLineBelow;
+        }
+
+        @Override public void
+        format(int leftMargin, Bulleting bulleting, int measure, Element element, Consumer<String> result)
+        throws HtmlException {
+
+            String text = Html2Txt.this.getBlock(XmlUtil.iterable(element.getChildNodes()));
+            if (this.prefix != null) text = this.prefix.concat(text);
+            if (this.suffix != null) text = text.concat(this.suffix);
+
+            if (this.emptyLineAbove) result.consume("");
+            result.consume(text);
+            if (this.underline != -1) result.consume(StringUtil.repeat(text.length(), (char) this.underline));
+            if (this.emptyLineBelow) result.consume("");
+        }
+    };
+
+    /**
+     * Simply appends the element's formatted content, a.k.a. "the tag is ignored".
+     */
+    private final HtmlBlockElementFormatter
+    IGNORED_HTML_BLOCK_ELEMENT_FORMATTER = new IndentingHtmlBlockElementFormatter(0);
+
+    /**
+     * Does <i>nothing</i>, i.e. even its contents is ignored.
+     */
+    private final HtmlBlockElementFormatter NOP_HTML_BLOCK_ELEMENT_FORMATTER = new HtmlBlockElementFormatter() {
+
+        @Override public void
+        format(int leftMargin, Bulleting bulleting, int measure, Element element, Consumer<String> result) {
+            ;
+        }
+    };
+
+    private final HtmlBlockElementFormatter
+    NYI_HTML_BLOCK_ELEMENT_FORMATTER = new HtmlBlockElementFormatter() {
+
+        @Override public void
+        format(int leftMargin, Bulleting bulleting, int measure, Element element, Consumer<String> result)
+        throws HtmlException {
+
+            Html2Txt.this.htmlErrorHandler.warning(
+                new HtmlException(
+                    element,
+                    "HTML block element \"<" + element.getNodeName() + ">\" is not yet implemented and thus ignored"
+                )
+            );
+            Html2Txt.this.IGNORED_HTML_BLOCK_ELEMENT_FORMATTER.format(leftMargin, bulleting, measure, element, result);
+        }
+    };
+
+    private
+    class IndentingHtmlBlockElementFormatter implements HtmlBlockElementFormatter {
+
+        private final int indentation;
+
+        public IndentingHtmlBlockElementFormatter(int indentation) { this.indentation = indentation; }
+
+        @Override public void
+        format(int leftMargin, Bulleting bulleting, int measure, Element element, Consumer<String> result)
+        throws HtmlException {
+
+            Html2Txt.this.formatBlocks(
+                leftMargin + this.indentation,
+                bulleting,
+                measure - this.indentation,
+                XmlUtil.iterable(element.getChildNodes()), result
+            );
+        }
+    }
+
+    private final Map<String, HtmlBlockElementFormatter>
+    ALL_HTML_BLOCK_ELEMENTS = Collections.unmodifiableMap(CollectionUtil.<String, HtmlBlockElementFormatter>map(
+        "address",    new IndentingHtmlBlockElementFormatter(2),
+        "article",    this.IGNORED_HTML_BLOCK_ELEMENT_FORMATTER,
+        "aside",      this.IGNORED_HTML_BLOCK_ELEMENT_FORMATTER,
+        "audio",      this.NYI_HTML_BLOCK_ELEMENT_FORMATTER,
+        "blockquote", new IndentingHtmlBlockElementFormatter(2),
+        "canvas",     this.IGNORED_HTML_BLOCK_ELEMENT_FORMATTER,
+        "dd",         new IndentingHtmlBlockElementFormatter(4),
+        "div",        this.IGNORED_HTML_BLOCK_ELEMENT_FORMATTER,
+        "dl",         new IndentingHtmlBlockElementFormatter(2),
+        "dt",         this.IGNORED_HTML_BLOCK_ELEMENT_FORMATTER,
+        "fieldset",   this.IGNORED_HTML_BLOCK_ELEMENT_FORMATTER,
+        "figcaption", this.IGNORED_HTML_BLOCK_ELEMENT_FORMATTER,
+        "figure",     this.IGNORED_HTML_BLOCK_ELEMENT_FORMATTER,
+        "footer",     this.IGNORED_HTML_BLOCK_ELEMENT_FORMATTER,
+        "form",       this.IGNORED_HTML_BLOCK_ELEMENT_FORMATTER,
+        "h1",         new HeadingHtmlBlockElementFormatter(true, '*', true),
+        "h2",         new HeadingHtmlBlockElementFormatter(true, '=', true),
+        "h3",         new HeadingHtmlBlockElementFormatter(true, '-', true),
+        "h4",         new HeadingHtmlBlockElementFormatter("=== ", " ==="),
+        "h5",         new HeadingHtmlBlockElementFormatter("== ",  " =="),
+        "h6",         new HeadingHtmlBlockElementFormatter("= ",   " ="),
+        "header",     this.IGNORED_HTML_BLOCK_ELEMENT_FORMATTER,
+        "hgroup",     this.IGNORED_HTML_BLOCK_ELEMENT_FORMATTER,
+        "hr",         this.HR_FORMATTER,
+        "main",       this.IGNORED_HTML_BLOCK_ELEMENT_FORMATTER,
+        "nav",        this.IGNORED_HTML_BLOCK_ELEMENT_FORMATTER,
+        "noscript",   this.NOP_HTML_BLOCK_ELEMENT_FORMATTER,
+        "ol",         this.OL_FORMATTER,
+        "output",
+        "p",          this.IGNORED_HTML_BLOCK_ELEMENT_FORMATTER,
+        "pre",
+        "section",
+        "table",
+        "tfoot",
+        "ul",
+        "video"
     ));
 
     /**
@@ -487,17 +714,17 @@ class Html2Txt {
         return this.ALL_HTML_INLINE_ELEMENTS.containsKey(e.getTagName());
     }
 
-    private final InlineElementFormatter
-    A_FORMATTER = new InlineElementFormatter() {
+    private final HtmlInlineElementFormatter
+    A_FORMATTER = new HtmlInlineElementFormatter() {
 
         @Override public void
-        format(Element e, StringBuilder result) throws HtmlException {
-            String name = e.getAttribute("name");
-            String href = e.getAttribute("href");
+        format(Element element, StringBuilder result) throws HtmlException {
+            String name = element.getAttribute("name");
+            String href = element.getAttribute("href");
             if (!name.isEmpty() && href.isEmpty()) {
-                if (!Html2Txt.this.getBlock(XmlUtil.iterable(e.getChildNodes())).isEmpty()) {
+                if (!Html2Txt.this.getBlock(XmlUtil.iterable(element.getChildNodes())).isEmpty()) {
                     Html2Txt.this.htmlErrorHandler.warning(
-                        new HtmlException(e, "'<a name=\"...\" />' tag should have content")
+                        new HtmlException(element, "'<a name=\"...\" />' tag should have content")
                     );
                 }
 
@@ -505,56 +732,56 @@ class Html2Txt {
                 ;
             } else
             if (!href.isEmpty() && name.isEmpty()) {
-                result.append(Html2Txt.this.getBlock(XmlUtil.iterable(e.getChildNodes())));
+                result.append(Html2Txt.this.getBlock(XmlUtil.iterable(element.getChildNodes())));
                 result.append(" (see ").append(href).append(')');
             } else
             {
                 Html2Txt.this.htmlErrorHandler.warning(
-                    new HtmlException(e, "\"<a>\" tag has an unexpected combination of attributes")
+                    new HtmlException(element, "\"<a>\" tag has an unexpected combination of attributes")
                 );
             }
         }
     };
 
-    private final InlineElementFormatter
-    ABBR_FORMATTER = new InlineElementFormatter() {
+    private final HtmlInlineElementFormatter
+    ABBR_FORMATTER = new HtmlInlineElementFormatter() {
 
         @Override public void
-        format(Element e, StringBuilder result) throws HtmlException {
+        format(Element element, StringBuilder result) throws HtmlException {
 
-            result.append(Html2Txt.this.getBlock(XmlUtil.iterable(e.getChildNodes())));
+            result.append(Html2Txt.this.getBlock(XmlUtil.iterable(element.getChildNodes())));
 
-            String title = e.getAttribute("title");
+            String title = element.getAttribute("title");
             if (!title.isEmpty()) {
                 result.append(" (\"").append(title).append("\")");
             }
         }
     };
 
-    private final InlineElementFormatter
-    BR_FORMATTER = new InlineElementFormatter() {
+    private final HtmlInlineElementFormatter
+    BR_FORMATTER = new HtmlInlineElementFormatter() {
 
         @Override
-        public void format(Element e, StringBuilder result) throws HtmlException {
+        public void format(Element element, StringBuilder result) throws HtmlException {
 
-            if (e.hasChildNodes()) {
+            if (element.hasChildNodes()) {
                 Html2Txt.this.htmlErrorHandler.warning(
-                    new HtmlException(e, "\"<br>\" tag should not have subelements nor contain text")
+                    new HtmlException(element, "\"<br>\" tag should not have subelements nor contain text")
                 );
             }
             result.append('\n');
         }
     };
 
-    private final InlineElementFormatter
-    INPUT_FORMATTER = new InlineElementFormatter() {
+    private final HtmlInlineElementFormatter
+    INPUT_FORMATTER = new HtmlInlineElementFormatter() {
 
         @Override public void
-        format(Element e, StringBuilder result) {
+        format(Element element, StringBuilder result) {
 
-            String type = e.getAttribute("type");
+            String type = element.getAttribute("type");
             if ("checkbox".equals(type)) {
-                result.append("checked".equals(e.getAttribute("checked")) ? "[x]" : "[ ]");
+                result.append("checked".equals(element.getAttribute("checked")) ? "[x]" : "[ ]");
             } else
             if ("hidden".equals(type)) {
                 ;
@@ -563,18 +790,18 @@ class Html2Txt {
                 result.append("[******]");
             } else
             if ("radio".equals(type)) {
-                result.append("checked".equals(e.getAttribute("checked")) ? "(o)" : "( )");
+                result.append("checked".equals(element.getAttribute("checked")) ? "(o)" : "( )");
             } else
             if ("range".equals(type)) {
                 result.append("[RANGE-INPUT]");
             } else
             if ("submit".equals(type)) {
-                String label = e.getAttribute("value");
+                String label = element.getAttribute("value");
                 if (label.isEmpty()) label = "Submit";
                 result.append("[ ").append(label).append(" ]");
             } else
             if ("text".equals(type) || "".equals(type)) {
-                result.append('[').append(e.getAttribute("value")).append(']');
+                result.append('[').append(element.getAttribute("value")).append(']');
             } else
             {
                 result.append('[').append(type.toUpperCase()).append("-INPUT]");
@@ -582,16 +809,16 @@ class Html2Txt {
         }
     };
 
-    private final InlineElementFormatter
-    Q_FORMATTER = new InlineElementFormatter() {
+    private final HtmlInlineElementFormatter
+    Q_FORMATTER = new HtmlInlineElementFormatter() {
 
         @Override public void
-        format(Element e, StringBuilder result) throws HtmlException {
+        format(Element element, StringBuilder result) throws HtmlException {
 
-            final String cite = e.getAttribute("cite");
+            final String cite = element.getAttribute("cite");
 
             result.append('"');
-            result.append(Html2Txt.this.getBlock(XmlUtil.iterable(e.getChildNodes())));
+            result.append(Html2Txt.this.getBlock(XmlUtil.iterable(element.getChildNodes())));
             result.append("\" (").append(cite).append(')');
         }
     };
@@ -599,77 +826,107 @@ class Html2Txt {
     /**
      * Simply appends the element's formatted content, a.k.a. "ignoring a tag".
      */
-    private final InlineElementFormatter NOP_FORMATTER = new FramingFormatter("", "");
+    private final HtmlInlineElementFormatter NOP_HTML_INLINE_ELEMENT_FORMATTER = new SimpleHtmlInlineElementFormatter("", "");
 
     /**
-     * Appends the <var>prefix</var>, the element's formatted content, and finally the <var>suffix</var>.
+     * Concatenates the <var>prefix</var>, the element's formatted content, and the <var>suffix</var>.
      */
-    class FramingFormatter implements InlineElementFormatter {
+    class SimpleHtmlInlineElementFormatter implements HtmlInlineElementFormatter {
 
         private final String prefix, suffix;
 
         public
-        FramingFormatter(String prefix, String suffix) {
+        SimpleHtmlInlineElementFormatter(String prefix, String suffix) {
             this.prefix = prefix;
             this.suffix = suffix;
         }
 
         @Override public void
-        format(Element e, StringBuilder result) throws HtmlException {
+        format(Element element, StringBuilder result) throws HtmlException {
 
             result.append(this.prefix);
-            result.append(Html2Txt.this.getBlock(XmlUtil.iterable(e.getChildNodes())));
+            result.append(Html2Txt.this.getBlock(XmlUtil.iterable(element.getChildNodes())));
             result.append(this.suffix);
         }
     }
 
-    private final InlineElementFormatter
-    NYI_FORMATTER = new InlineElementFormatter() {
+    private final HtmlInlineElementFormatter
+    NYI_FORMATTER = new HtmlInlineElementFormatter() {
 
         @Override public void
-        format(Element e, StringBuilder result) throws HtmlException {
+        format(Element element, StringBuilder result) throws HtmlException {
 
             Html2Txt.this.htmlErrorHandler.warning(
-                new HtmlException(e, "\"<" + e.getNodeName() + ">\" is not yet implemented and thus ignored")
+                new HtmlException(
+                    element,
+                    "HTML inline element \"<" + element.getNodeName() + ">\" is not yet implemented and thus ignored"
+                )
             );
 
-            result.append(Html2Txt.this.getBlock(XmlUtil.iterable(e.getChildNodes())));
+            result.append(Html2Txt.this.getBlock(XmlUtil.iterable(element.getChildNodes())));
         }
     };
 
-    private final Map<String, InlineElementFormatter>
-    ALL_HTML_INLINE_ELEMENTS = CollectionUtil.<String, InlineElementFormatter>map(
+    /**
+     * Defines the strategies for formatting HTML inline elements.
+     * <p>
+     *   To see the HTML inline elements and how they are formatted, click the word "{@code ALL_HTML_INLINE_ELEMENTS}"
+     *   (right above). The right hand side of the mapping means:
+     *   <dl>
+     *     <dt>{@code this.NYI_FORMATTER}</dt>
+     *     <dd>
+     *       Issues a "Not yet implemented" warning (see {@link #NYI_FORMATTER}).
+     *     </dd>
+     *     <dt>{@code this.NOP_FORMATTER}</dt>
+     *     <dd>
+     *       The element is simply replaced with its content (a.k.a. "the element is ignored").
+     *     </dd>
+     *     <dt>{@code new FramingFormatter("foo", "bar")}</dt>
+     *     <dd>
+     *       The element is replaced with "{@code foo}", the element content, and "{@code bar}" (see #{@link
+     *       SimpleHtmlInlineElementFormatter}).
+     *     </dd>
+     *     <dt>Other</dt>
+     *     <dd>
+     *       This HTML inline element is formatted specially; see the respective field documentation on this page (e.g.
+     *       {@link #A_FORMATTER}).
+     *     </dd>
+     *   </dl>
+     * </p>
+     */
+    protected final Map<String, HtmlInlineElementFormatter>
+    ALL_HTML_INLINE_ELEMENTS = Collections.unmodifiableMap(CollectionUtil.<String, HtmlInlineElementFormatter>map(
         "a",        this.A_FORMATTER,
         "abbr",     this.ABBR_FORMATTER,
         "acronym",  this.ABBR_FORMATTER,
-        "b",        new FramingFormatter("*", "*"),
+        "b",        new SimpleHtmlInlineElementFormatter("*", "*"),
         "bdo",      this.NYI_FORMATTER,
-        "big",      this.NOP_FORMATTER,
+        "big",      this.NOP_HTML_INLINE_ELEMENT_FORMATTER,
         "br",       this.BR_FORMATTER,
-        "button",   new FramingFormatter("[ ", " ]"),
-        "cite",     this.NOP_FORMATTER,
-        "code",     this.NOP_FORMATTER,
-        "dfn",      this.NOP_FORMATTER,
-        "em",       new FramingFormatter("<", ">"),
-        "i",        new FramingFormatter("<", ">"),
+        "button",   new SimpleHtmlInlineElementFormatter("[ ", " ]"),
+        "cite",     this.NOP_HTML_INLINE_ELEMENT_FORMATTER,
+        "code",     this.NOP_HTML_INLINE_ELEMENT_FORMATTER,
+        "dfn",      this.NOP_HTML_INLINE_ELEMENT_FORMATTER,
+        "em",       new SimpleHtmlInlineElementFormatter("<", ">"),
+        "i",        new SimpleHtmlInlineElementFormatter("<", ">"),
         "img",      this.NYI_FORMATTER,
         "input",    this.INPUT_FORMATTER,
-        "kbd",      new FramingFormatter("[ ", " ]"),
-        "label",    this.NOP_FORMATTER,
+        "kbd",      new SimpleHtmlInlineElementFormatter("[ ", " ]"),
+        "label",    this.NOP_HTML_INLINE_ELEMENT_FORMATTER,
         "map",      this.NYI_FORMATTER,
         "object",   this.NYI_FORMATTER,
         "q",        this.Q_FORMATTER,
-        "samp",     this.NOP_FORMATTER,
+        "samp",     this.NOP_HTML_INLINE_ELEMENT_FORMATTER,
         "script",   this.NYI_FORMATTER,
-        "select",   new FramingFormatter("[ ", " ]"),
-        "small",    this.NOP_FORMATTER,
-        "span",     this.NOP_FORMATTER,
-        "strong",   new FramingFormatter("*", "*"),
-        "sub",      this.NOP_FORMATTER,
-        "sup",      new FramingFormatter("^", ""),
-        "textarea", new FramingFormatter("[ ", " ]"),
-        "tt",       this.NOP_FORMATTER,
-        "u",        new FramingFormatter("_", "_"),
-        "var",      new FramingFormatter("<", ">")
-    );
+        "select",   new SimpleHtmlInlineElementFormatter("[ ", " ]"),
+        "small",    this.NOP_HTML_INLINE_ELEMENT_FORMATTER,
+        "span",     this.NOP_HTML_INLINE_ELEMENT_FORMATTER,
+        "strong",   new SimpleHtmlInlineElementFormatter("*", "*"),
+        "sub",      this.NOP_HTML_INLINE_ELEMENT_FORMATTER,
+        "sup",      new SimpleHtmlInlineElementFormatter("^", ""),
+        "textarea", new SimpleHtmlInlineElementFormatter("[ ", " ]"),
+        "tt",       this.NOP_HTML_INLINE_ELEMENT_FORMATTER,
+        "u",        new SimpleHtmlInlineElementFormatter("_", "_"),
+        "var",      new SimpleHtmlInlineElementFormatter("<", ">")
+    ));
 }
