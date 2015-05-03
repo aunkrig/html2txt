@@ -78,11 +78,42 @@ class AntTask extends Task {
     /**
      * The directory where the output file(s) will be created. The name of each output file(s) will be that of the
      * input file, less the "{@code .html}" suffix (if any), plus an "{@code .txt}" extension.
-     *
-     * @de.unkrig.doclet.ant.defaultValue The project's base directory
+     * <p>
+     *   The default is the source resource's base directory (if any), otherwise the project's base directory.
+     * </p>
      */
     public void
     setTodir(File value) { this.todir = value; }
+
+    /**
+     * The number of spaces that preceeds each line of output.
+     *
+     * @de.unkrig.doclet.ant.defaultValue 0
+     */
+    public void
+    setPageLeftMargin(int value) { this.html2txt.setPageLeftMarginWidth(value); }
+
+    /**
+     * The maximum length of output lines is "<var>pageWidth</var> - <var>rightMarginWidth</var>".
+     * <p>
+     *   The default value is @"1" in order to avoid extra line wraps on certain terminals.
+     * </p>
+     *
+     * @de.unkrig.doclet.ant.defaultValue {@code 1}
+     */
+    public void
+    setPageRightMargin(int value) { this.html2txt.setPageRightMarginWidth(value); }
+
+    /**
+     * The maximum length of output lines is "<var>pageWidth</var> - <var>rightMarginWidth</var>".
+     * <p>
+     *   Defaults to the value of the environment variable "$COLUMNS", or, if that is not set, to 80.
+     *  </p>
+     *
+     * @de.unkrig.doclet.ant.defaultValue {@code $COLUMNS|80}
+     */
+    public void
+    setPageWidth(int value) { this.html2txt.setPageWidth(value); }
 
     /**
      * Resources to convert.
@@ -111,7 +142,6 @@ class AntTask extends Task {
 
         final File                     file                = this.file;
         final File                     tofile              = this.tofile;
-        final File                     todir               = this.todir;
         final List<ResourceCollection> resourceCollections = this.resourceCollections;
 
         List<Resource> resources = new ArrayList<Resource>();
@@ -129,15 +159,17 @@ class AntTask extends Task {
 
         if (resources.isEmpty()) return;
 
-        if (resources.size() == 1 && tofile != null && todir == null) {
+        if (resources.size() == 1 && tofile != null && this.todir == null) {
             this.convertResource(resources.get(0), tofile);
         } else
         if (tofile == null) {
-            if (todir == null) this.todir = this.getProject().getBaseDir();
             for (Resource resource : resources) {
+                File todir = this.todir;
+                if (todir == null && resource.isFilesystemOnly()) todir = ((FileResource) resource).getBaseDir();
+                if (todir == null) todir = this.getProject().getBaseDir();
                 String outputFileName = resource.getName();
                 if (outputFileName.endsWith(".html")) {
-                    outputFileName = outputFileName.substring(outputFileName.length() - 5);
+                    outputFileName = outputFileName.substring(0, outputFileName.length() - 5);
                 }
                 outputFileName += ".txt";
                 this.convertResource(resource, new File(todir, outputFileName));
