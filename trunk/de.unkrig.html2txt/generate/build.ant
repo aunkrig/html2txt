@@ -1,27 +1,35 @@
+
+<!--
+	This ANT build file is intended to be invoked by an ECLIPSE "Ant Builder"; it (re-)generates the
+	"src/de/unkrig/zz/diff/usage.txt" which the ZZDIFF command line tool copies to STDOUT if it is invoked with the
+	"-help" option.
+-->
+
 <project>
 	<target name="usage.txt">
-		<delete dir="tmp" />
-		<mkdir dir="tmp" />
-		
-		<path id="html2txt.classpath">
-			<pathelement location="bin" />
-			<pathelement location="../de.unkrig.commons.file/bin"         />
-			<pathelement location="../de.unkrig.commons.io/bin"           />
-			<pathelement location="../de.unkrig.commons.lang/bin"         />
-			<pathelement location="../de.unkrig.commons.nullanalysis/bin" />
-			<pathelement location="../de.unkrig.commons.text/bin"         />
-			<pathelement location="../de.unkrig.commons.util/bin"         />
-		</path>
-
-		<javadoc destdir="tmp" classpathref="html2txt.classpath" failonerror="true">
+		<echo message="*** Generating HTML documentation..." />
+		<javadoc destdir="src" failonerror="true">
 			<doclet name="de.unkrig.doclet.main.MainDoclet" path="generate/de.unkrig.doclet.jar" />
 			<fileset file="src/de/unkrig/html2txt/Main.java" />
 			<classpath>
-				<pathelement location="../org.apache.ant-1.8.4/lib/ant.jar"   />
+				<pathelement location="bin" />
+				<pathelement location="../de.unkrig.commons.io/bin"           />
+				<pathelement location="../de.unkrig.commons.nullanalysis/bin" />
+				<pathelement location="../de.unkrig.commons.text/bin"         />
 			</classpath>
 		</javadoc>
 		
-		<java classpathref="html2txt.classpath" classname="de.unkrig.html2txt.Main" failonerror="true">
+		<java classname="de.unkrig.html2txt.Main">
+			<classpath>
+				<pathelement location="bin" />
+				<pathelement location="../de.unkrig.commons.file/bin" />
+				<pathelement location="../de.unkrig.commons.io/bin"   />
+				<pathelement location="../de.unkrig.commons.lang/bin" />
+				<pathelement location="../de.unkrig.commons.util/bin" />
+				<pathelement location="../de.unkrig.commons.text/bin" />
+			</classpath>
+			<arg value="-page-width" />
+			<arg value="120" />
 			<arg value="${basedir}/tmp/de/unkrig/html2txt/Main.main.html" />
 			<arg value="${basedir}/src/de/unkrig/html2txt/usage.txt" />
 		</java>
