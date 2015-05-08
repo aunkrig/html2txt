@@ -616,8 +616,17 @@ class Html2Txt {
             } else
             {
                 for (idx2 = measure; idx2 > 0 && text.charAt(idx2 - 1) != ' '; idx2--);
-                if (idx2 == 0) break;
-                for (idx1 = idx2 - 1; text.charAt(idx1 - 1) == ' '; idx1--);
+                if (idx2 == 0) {
+                    for (idx1 = measure + 1; idx1 < text.length() && text.charAt(idx1) != ' '; idx1++);
+                    if (idx1 == text.length()) break;
+                    for (idx2 = idx1 + 1; idx2 < text.length() && text.charAt(idx2) == ' '; idx2++);
+                    if (idx2 == text.length()) {
+                        text = text.substring(0, idx1);
+                        break;
+                    }
+                } else {
+                    for (idx1 = idx2 - 1; text.charAt(idx1 - 1) == ' '; idx1--);
+                }
             }
 
             output.consume(leftMargin + text.substring(0, idx1));
