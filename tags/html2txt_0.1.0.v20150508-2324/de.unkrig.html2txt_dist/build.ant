@@ -1,0 +1,148 @@
+<project default="default">
+
+	<property file="local_build.properties" />
+	<property file="build.properties" />
+
+	<!-- For "<swingDialog>" and other tasks. -->
+	<taskdef classpath="lib/de.unkrig.ant-contrib.jar" resource="de/unkrig/antcontrib/ant.xml" />
+
+	<!-- For "<ftp2>" -->
+	<taskdef classpath="lib/ant_issue_54883.jar" resource="ant_issue_54883.properties" />
+
+	<taskdef
+		name="jarjar"
+		classname="com.tonicsystems.jarjar.JarJarTask"
+		classpath="lib/jarjar-1.4.jar"
+	/>
+
+	<target name="default" depends="build,publish,tag" />
+
+	<target name="build">
+		<delete dir="mirror" />
+
+		<tstamp><format property="qualifier" pattern="'v'yyyyMMdd-HHmm" /></tstamp>
+		<property name="version" value="${base.version}.${qualifier}" />
+
+		<!-- TODO: Don't use the class files built by ECLIPSE. -->
+		<jarjar destfile="mirror/download/${version}/html2txt.jar" filesonly="true">
+			<rule pattern="de.unkrig.commons.nullanalysis.**" result="de.unkrig.commons.nullanalysis.@1" />
+            <rule pattern="de.unkrig.commons.**"              result="de.unkrig.html2txt.commons.@1"     />
+			<fileset dir="../de.unkrig.html2txt/bin" />
+			<fileset dir="../de.unkrig.commons.file/bin"         />
+			<fileset dir="../de.unkrig.commons.io/bin"           />
+			<fileset dir="../de.unkrig.commons.lang/bin"         />
+			<fileset dir="../de.unkrig.commons.nullanalysis/bin" />
+			<fileset dir="../de.unkrig.commons.reflect/bin" />
+			<fileset dir="../de.unkrig.commons.text/bin"         />
+			<fileset dir="../de.unkrig.commons.util/bin"         />
+			<manifest><attribute name="Main-Class" value="de.unkrig.html2txt.Main" /></manifest>
+		</jarjar>
+
+		<!-- Build API JAVADOC. -->
+		<javadoc
+			destdir="mirror/javadoc"
+			doctitle="DOCTITLE"
+			footer="${api.javadoc.footer}"
+			header="${api.javadoc.header}"
+			windowtitle="${api.javadoc.windowtitle}"
+			linksource="true"
+			failonerror="true"
+		>
+			<arg value="-Xdoclint:none" />
+			<arg value="-quiet" />
+			<fileset dir="../de.unkrig.html2txt/src" />
+			<link
+				offline="true"
+				packagelistloc="../de.unkrig.commons_dist/mirror/javadoc"
+				href="http://commons.unkrig.de/javadoc/"
+			/>
+			<classpath>
+				<pathelement location="../de.unkrig.commons.file/bin"         />
+				<pathelement location="../de.unkrig.commons.io/bin"           />
+				<pathelement location="../de.unkrig.commons.lang/bin"         />
+				<pathelement location="../de.unkrig.commons.nullanalysis/bin" />
+				<pathelement location="../de.unkrig.commons.text/bin"         />
+				<pathelement location="../de.unkrig.commons.util/bin"         />
+				<pathelement location="../org.apache.ant-1.8.4/lib/ant.jar" />
+			</classpath>
+			<tag name="de.unkrig.doclet.ant.defaultValue" description="Default value:" />
+		</javadoc>
+
+		<!-- Copy CHANGELOG.txt -->
+		<copy file="CHANGELOG.txt" todir="mirror" />
+	</target>
+
+	<target name="publish">
+
+		<!-- Have the FTP parameters entered/confirmed by the user. -->
+		<swingDialog title="FTP upload of update site">
+			<text label="Server:"                    labelWidth="160" property="ftp.server"         defaultvalue="${ftp.server}" />
+			<text label="Port (optional):"           labelWidth="160" property="ftp.port"           defaultvalue="${ftp.port}" />
+			<text label="User ID:"                   labelWidth="160" property="ftp.userid"         defaultvalue="${ftp.userid}" />
+			<text label="Password:"                  labelWidth="160" property="ftp.password"       defaultvalue="${ftp.password}" secure="true" focus="true" />
+			<text label="Proxy server (optional):"   labelWidth="160" property="ftp.proxy.server"   defaultvalue="${ftp.proxy.server}" />
+			<text label="Proxy port (optional):"     labelWidth="160" property="ftp.proxy.port"     defaultvalue="${ftp.proxy.port}" />
+			<text label="Proxy user ID (optional):"  labelWidth="160" property="ftp.proxy.userid"   defaultvalue="${ftp.proxy.userid}" />
+			<text label="Proxy password (optional):" labelWidth="160" property="ftp.proxy.password" defaultvalue="${ftp.proxy.password}" secure="true" />
+			<text label="Remote directory:"          labelWidth="160" property="ftp.remotedir"      defaultvalue="${ftp.remotedir}" />
+			<checkbox text="Use passive FTP"   property="ftp.passive" preselected="true" />
+			<checkbox text="Verbose reporting" property="ftp.verbose" preselected="true" />
+		</swingDialog>
+		<!-- Do the upload. -->
+		<ftp2
+			server       ="${ftp.server}"
+			port         ="${ftp.port}"
+			userid       ="${ftp.userid}"
+			password     ="${ftp.password}"
+		    proxyServer  ="${ftp.proxy.server}"
+		    proxyPort    ="${ftp.proxy.port}"
+		    proxyUserid  ="${ftp.proxy.userid}"
+		    proxyPassword="${ftp.proxy.password}"
+			remotedir    ="${ftp.remotedir}"
+			passive      ="${ftp.passive}"
+			verbose      ="${ftp.verbose}"
+			action       ="put"
+		>
+			<fileset dir="mirror" />
+		</ftp2>
+	</target>
+
+	<target name="tag" description="Tags the workspace version">
+
+		<!-- Verify that the 'de.unkrig.subclipse.svn' task is available. -->
+		<fail unless="eclipse.running" message="Please activate the ECLIPSE external tool configuration option 'Run in the same JRE as the workspace'." />
+		<condition property="de.unkrig.subclipse.svn.exists"><typefound name="de.unkrig.subclipse.svn" /></condition>
+		<fail unless="de.unkrig.subclipse.svn.exists" message="Please install the 'de.unkrig.subclipse.ant' ECLIPSE plug-in from update site 'http://subclipse.unkrig.de/update' and re-run." />
+
+		<!-- Determine the current version. -->
+		<dirset dir="mirror/download" includes="*" id="fileset.id" />
+		<property name="version" refid="fileset.id" />
+
+		<!-- Create the tag. -->
+		<echo message="Tagging relevant projects as 'html2txt_${version}'..." />
+		<property name="d" value="https://svn.code.sf.net/p/html2txt/code/tags/html2txt_${version}" />
+		<de.unkrig.subclipse.svn>
+			<copy toUrl="https://svn.code.sf.net/p/loggifier/code/tags/html2txt_${version}" message="-">
+				<dirset dir="..">
+					<include name="de.unkrig.checkstyle-configuration" />
+
+					<include name="de.unkrig.commons.file"             />
+					<include name="de.unkrig.commons.io"               />
+					<include name="de.unkrig.commons.lang"             />
+					<include name="de.unkrig.commons.nullanalysis"     />
+					<include name="de.unkrig.commons.reflect"          />
+					<include name="de.unkrig.commons.text"             />
+					<include name="de.unkrig.commons.util"             />
+				</dirset>
+			</copy>
+
+			<copy toUrl="https://svn.code.sf.net/p/html2txt/code/tags/html2txt_${version}" message="-">
+				<dirset dir="..">
+					<include name="de.unkrig.html2txt"      />
+					<include name="de.unkrig.html2txt_dist" />
+				</dirset>
+			</copy>
+		</de.unkrig.subclipse.svn>
+		<echo message="... done!" />
+	</target>
+</project>
