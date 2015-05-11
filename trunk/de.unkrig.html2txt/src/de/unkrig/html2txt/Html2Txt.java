@@ -738,7 +738,10 @@ class Html2Txt {
         }
     };
 
-    private static final BlockElementFormatter
+    /**
+     * Formatter for the "{@code <ol>}" ("ordered list") HTML blocl element.
+     */
+    protected static final BlockElementFormatter
     OL_FORMATTER = new BlockElementFormatter() {
 
         @Override public void
