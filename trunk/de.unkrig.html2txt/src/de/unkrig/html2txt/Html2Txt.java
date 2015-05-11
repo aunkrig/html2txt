@@ -1021,7 +1021,7 @@ class Html2Txt {
      *   </dl>
      * </p>
      */
-    private static final Map<String, BlockElementFormatter>
+    protected static final Map<String, BlockElementFormatter>
     ALL_BLOCK_ELEMENTS = Collections.unmodifiableMap(CollectionUtil.<String, BlockElementFormatter>map(
         "address",    new IndentingBlockElementFormatter(2),
         "article",    Html2Txt.IGNORE_BLOCK_ELEMENT_FORMATTER,
