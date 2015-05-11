@@ -42,7 +42,7 @@ import de.unkrig.commons.lang.protocol.ConsumerWhichThrows;
 import de.unkrig.commons.nullanalysis.Nullable;
 
 /**
- * Converts one ore more HTML files into plain text files.
+ * Converts one or more HTML files into plain text files.
  * <p>
  *   The following attributes are mutually exclusive:
  * </p>
