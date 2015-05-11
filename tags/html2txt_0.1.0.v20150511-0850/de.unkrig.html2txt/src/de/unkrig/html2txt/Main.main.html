@@ -1,0 +1,32 @@
+<!DOCTYPE html>
+<html>
+  <body>
+    <h2>Usage:</h2>
+    
+    <dl>
+      <dt><code>html2txt</code> [ <var>option</var> ] ... <var>input-file</var></dt>
+      <dd>
+        Converts the HTML document in the <var>input-file</var> to plain text, and writes it to STDOUT.
+      </dd>
+      <dt><code>html2txt</code> [ <var>option</var> ] ... <var>input-file</var> <var>output-file</var></dt>
+      <dd>
+        Converts the HTML document in the <var>input-file</var> to plain text, and writes it to the
+        <var>output-file</var>.
+      </dd>
+    </dl>
+    
+    <h2>Options:</h2>
+    
+    <dl>
+      <dt><code>-help</code></dt>
+      <dd>
+        Print this text and terminate.
+      </dd>
+      <dt><code>-page-width</code> <var>N</var></dt>
+      <dd>
+        The maximum line length to produce. Defaults to the value of the "<code>$COLUMNS</code>" environment variable,
+        if set, otherwise to "80".
+      </dd>
+    </dl>
+  </body>
+</html>
