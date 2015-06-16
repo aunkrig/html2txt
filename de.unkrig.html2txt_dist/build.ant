@@ -138,7 +138,7 @@
 	<target name="publish">
 
 		<!-- Have the FTP parameters entered/confirmed by the user. -->
-		<swingDialog title="FTP upload of update site">
+		<swingDialog title="FTP upload of distribution">
 			<text label="Server:"                    labelWidth="160" property="ftp.server"         defaultvalue="${ftp.server}" />
 			<text label="Port (optional):"           labelWidth="160" property="ftp.port"           defaultvalue="${ftp.port}" />
 			<text label="User ID:"                   labelWidth="160" property="ftp.userid"         defaultvalue="${ftp.userid}" />
