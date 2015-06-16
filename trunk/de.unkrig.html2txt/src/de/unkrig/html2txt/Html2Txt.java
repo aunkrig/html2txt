@@ -48,7 +48,7 @@ import org.xml.sax.ErrorHandler;
 import org.xml.sax.SAXException;
 import org.xml.sax.SAXParseException;
 
-import de.unkrig.commons.file.FileUtil;
+import de.unkrig.commons.io.IoUtil;
 import de.unkrig.commons.io.LineUtil;
 import de.unkrig.commons.lang.AssertionUtil;
 import de.unkrig.commons.lang.StringUtil;
@@ -426,7 +426,7 @@ class Html2Txt {
     public void
     html2txt(final File inputFile, File outputFile) throws Exception {
 
-        FileUtil.printToFile(
+        IoUtil.printToFile(
             outputFile,
             Charset.forName("ISO8859-1"),
             new ConsumerWhichThrows<PrintWriter, Exception>() {

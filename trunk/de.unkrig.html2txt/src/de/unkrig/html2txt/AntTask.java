@@ -37,7 +37,7 @@ import org.apache.tools.ant.types.Resource;
 import org.apache.tools.ant.types.ResourceCollection;
 import org.apache.tools.ant.types.resources.FileResource;
 
-import de.unkrig.commons.file.FileUtil;
+import de.unkrig.commons.io.IoUtil;
 import de.unkrig.commons.lang.protocol.ConsumerWhichThrows;
 import de.unkrig.commons.nullanalysis.Nullable;
 
@@ -187,7 +187,7 @@ class AntTask extends Task {
             this.html2txt.html2txt(((FileResource) in).getFile(), out);
         } else
         {
-            FileUtil.asFile(
+            IoUtil.asFile(
                 in.getInputStream(),                         // inputStream
                 true,                                        // closeInputStream
                 "h2t",                                       // prefix
