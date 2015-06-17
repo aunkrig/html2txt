@@ -88,7 +88,7 @@ class AntTask extends Task {
     /**
      * The number of spaces that preceeds each line of output.
      *
-     * @de.unkrig.doclet.ant.defaultValue 0
+     * @ant.defaultValue 0
      */
     public void
     setPageLeftMargin(int value) { this.html2txt.setPageLeftMarginWidth(value); }
@@ -99,7 +99,7 @@ class AntTask extends Task {
      *   The default value is @"1" in order to avoid extra line wraps on certain terminals.
      * </p>
      *
-     * @de.unkrig.doclet.ant.defaultValue {@code 1}
+     * @ant.defaultValue {@code 1}
      */
     public void
     setPageRightMargin(int value) { this.html2txt.setPageRightMarginWidth(value); }
@@ -110,7 +110,7 @@ class AntTask extends Task {
      *   Defaults to the value of the environment variable "$COLUMNS", or, if that is not set, to 80.
      *  </p>
      *
-     * @de.unkrig.doclet.ant.defaultValue {@code $COLUMNS|80}
+     * @ant.defaultValue {@code $COLUMNS|80}
      */
     public void
     setPageWidth(int value) { this.html2txt.setPageWidth(value); }
