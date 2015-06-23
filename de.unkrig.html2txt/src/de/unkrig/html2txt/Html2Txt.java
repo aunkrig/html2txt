@@ -426,7 +426,7 @@ class Html2Txt {
     public void
     html2txt(final File inputFile, File outputFile) throws Exception {
 
-        IoUtil.printToFile(
+        IoUtil.outputFilePrintWriter(
             outputFile,
             Charset.forName("ISO8859-1"),
             new ConsumerWhichThrows<PrintWriter, Exception>() {
