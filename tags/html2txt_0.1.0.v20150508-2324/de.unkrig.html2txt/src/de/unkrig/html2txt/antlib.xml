@@ -1,4 +1,0 @@
-<?xml version="1.0"?>
-<antlib>
-   <taskdef name="html2txt" classname="de.unkrig.html2txt.AntTask"/>
-</antlib>
