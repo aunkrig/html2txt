@@ -88,7 +88,7 @@
 	<target name="build.ant.doc">
 
 		<echo message="*** Generating the ANT task documentation..." />
-		<javadoc destdir="antdoc" failonerror="true">
+		<javadoc destdir="mirror/antdoc" failonerror="true">
 			<doclet name="de.unkrig.doclet.ant.AntDoclet">
 				<path>
 <!--
