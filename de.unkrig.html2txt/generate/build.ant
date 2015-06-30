@@ -7,6 +7,7 @@
 
 <project>
 	<target name="usage.txt">
+
 		<echo message="*** Generating HTML documentation..." />
 		<javadoc destdir="src" failonerror="true">
 			<doclet name="de.unkrig.doclet.main.MainDoclet" path="generate/de.unkrig.doclet.jar" />
