@@ -1087,6 +1087,9 @@ class Html2Txt {
         return Html2Txt.ALL_INLINE_ELEMENTS.containsKey(e.getTagName());
     }
 
+    /**
+     * Formats "{@code <a href="...">...</a>}" and "{@code <a name="..." />}".
+     */
     private static final InlineElementFormatter
     A_FORMATTER = new InlineElementFormatter() {
 
@@ -1165,9 +1168,6 @@ class Html2Txt {
             if ("radio".equals(type)) {
                 result.append("checked".equals(element.getAttribute("checked")) ? "(o)" : "( )");
             } else
-            if ("range".equals(type)) {
-                result.append("[RANGE-INPUT]");
-            } else
             if ("submit".equals(type)) {
                 String label = element.getAttribute("value");
                 if (label.isEmpty()) label = "Submit";
@@ -1210,6 +1210,9 @@ class Html2Txt {
 
         private final String prefix, suffix;
 
+        /**
+         * Formats enclosed text by prepending the <var>prefix</var> and appending the <var>suffix</var> to it.
+         */
         public
         SimpleInlineElementFormatter(String prefix, String suffix) {
             this.prefix = prefix;
@@ -1269,7 +1272,7 @@ class Html2Txt {
      * </p>
      */
     protected static final Map<String, InlineElementFormatter>
-    ALL_INLINE_ELEMENTS = Collections.unmodifiableMap(CollectionUtil.<String, InlineElementFormatter>map(
+    ALL_INLINE_ELEMENTS = CollectionUtil.<String, InlineElementFormatter>map(
         "a",        Html2Txt.A_FORMATTER,
         "abbr",     Html2Txt.ABBR_FORMATTER,
         "acronym",  Html2Txt.ABBR_FORMATTER,
@@ -1302,5 +1305,5 @@ class Html2Txt {
         "tt",       Html2Txt.IGNORE_INLINE_ELEMENT_FORMATTER,
         "u",        new SimpleInlineElementFormatter("_", "_"),
         "var",      new SimpleInlineElementFormatter("<", ">")
-    ));
+    );
 }
