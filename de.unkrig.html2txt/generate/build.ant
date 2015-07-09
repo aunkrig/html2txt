@@ -31,7 +31,7 @@
 			</classpath>
 			<arg value="-page-width" />
 			<arg value="120" />
-			<arg value="${basedir}/tmp/de/unkrig/html2txt/Main.main.html" />
+			<arg value="${basedir}/src/de/unkrig/html2txt/Main.main.html" />
 			<arg value="${basedir}/src/de/unkrig/html2txt/usage.txt" />
 		</java>
 		
