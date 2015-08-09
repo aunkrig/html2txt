@@ -468,7 +468,7 @@ class Html2Txt {
         output = ConsumerUtil.<CharSequence>compress(output, StringUtil.IS_BLANK, "");
 
         // Some formatters render trailing spaces (esp. the TABLE_FORMATTER), which we also want to suppress.
-        output = StringUtil.rightTrim(output);
+        output = Html2Txt.rightTrim(output);
 
         Element documentElement = document.getDocumentElement();
 
@@ -1038,7 +1038,7 @@ class Html2Txt {
                             List<CharSequence> lines = cell.lines;
                             assert lines != null;
                             p = ProducerUtil.concat(
-                                StringUtil.rightPad(ProducerUtil.fromCollection(lines), w, ' '),
+                                Html2Txt.rightPad(ProducerUtil.fromCollection(lines), w, ' '),
                                 ProducerUtil.constantProducer(StringUtil.repeat(w, ' '))
                             );
                         }
@@ -1103,7 +1103,7 @@ class Html2Txt {
                         cell.childNodes,                    // nodes
                         ConsumerUtil.addToCollection(lines) // output
                     );
-                    cell.width  = StringUtil.maxLength(lines);
+                    cell.width  = Html2Txt.maxLength(lines);
                     cell.height = lines.size();
                 }
             }
@@ -1494,6 +1494,18 @@ class Html2Txt {
             return result;
         }
     };
+
+    public static int
+    maxLength(Iterable<? extends CharSequence> css) {
+
+        int result = 0;
+        for (CharSequence cs : css) {
+            int len = cs.length();
+            if (len > result) result = len;
+        }
+
+        return result;
+    }
 
     private static final BlockElementFormatter
     UL_FORMATTER = new BlockElementFormatter() {
@@ -1951,4 +1963,48 @@ class Html2Txt {
         "u",        new SimpleInlineElementFormatter("_", "_"),
         "var",      new SimpleInlineElementFormatter("<", ">")
     );
+
+    /**
+     * Wraps the given <var>delegate</var> such that it right-pads the products with <var>c</var> to the given
+     * <var>width</var>.
+     */
+    public static Producer<String>
+    rightPad(final Producer<? extends CharSequence> delegate, final int width, final char c) {
+
+        return new Producer<String>() {
+
+            @Override @Nullable public String
+            produce() {
+                CharSequence cs = delegate.produce();
+                if (cs == null) return null;
+                return (
+                    cs.length() < width
+                    ? cs + StringUtil.repeat(width - cs.length(), c)
+                    : cs.toString()
+                );
+            }
+        };
+    }
+
+    public static Consumer<CharSequence>
+    rightTrim(final Consumer<? super String> delegate) {
+
+        return new Consumer<CharSequence>() {
+
+            @Override public void
+            consume(CharSequence subject) {
+
+                int len = subject.length();
+
+                if (len == 0 || subject.charAt(len - 1) != ' ') {
+                    delegate.consume(subject.toString());
+                } else {
+
+                    for (len -= 2; len >= 0 && subject.charAt(len) == ' '; len--);
+
+                    delegate.consume(subject.toString().substring(0, len + 1));
+                }
+            }
+        };
+    }
 }
