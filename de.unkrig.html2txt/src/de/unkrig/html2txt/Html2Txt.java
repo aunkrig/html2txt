@@ -32,13 +32,9 @@ import java.io.Reader;
 import java.io.Writer;
 import java.nio.charset.Charset;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
-import java.util.Map.Entry;
-import java.util.SortedMap;
-import java.util.TreeMap;
 import java.util.regex.Pattern;
 
 import javax.xml.parsers.DocumentBuilder;
@@ -52,6 +48,7 @@ import org.w3c.dom.Element;
 import org.w3c.dom.Node;
 import org.xml.sax.ErrorHandler;
 import org.xml.sax.InputSource;
+import org.xml.sax.Locator;
 import org.xml.sax.SAXException;
 import org.xml.sax.SAXParseException;
 
@@ -63,13 +60,26 @@ import de.unkrig.commons.lang.protocol.Consumer;
 import de.unkrig.commons.lang.protocol.ConsumerUtil;
 import de.unkrig.commons.lang.protocol.ConsumerWhichThrows;
 import de.unkrig.commons.lang.protocol.Producer;
-import de.unkrig.commons.lang.protocol.ProducerUtil;
 import de.unkrig.commons.nullanalysis.Nullable;
 import de.unkrig.commons.text.xml.XmlUtil;
 import de.unkrig.commons.util.collections.CollectionUtil;
 
 /**
- * A command
+ * A converter that turns an HTML document into plain text, using spaces and various punctuation characters to format
+ * it.
+ * <p>
+ *   One important restriction is that the HTML document must be "well-formed", i.e. all opening tags must be
+ *   <i>exactly</i> matched by closing tags, i.e.:
+ * </p>
+ * <pre>
+ * Let's &lt;i>emphasize&lt;/i>.
+ * &lt;ul>
+ *   &lt;li>List items&lt;/li>
+ *   &lt;li>must be terminated with "&lt;tt>&amp;lt;/li>&lt;/tt>".
+ * &lt;/ul>
+ * &lt;br />
+ * &lt;hr />
+ * </pre>
  */
 public
 class Html2Txt {
@@ -93,7 +103,7 @@ class Html2Txt {
         @Override public void error(HtmlException e)      throws HtmlException { throw e; }
     };
 
-    private HtmlErrorHandler htmlErrorHandler = Html2Txt.SIMPLE_HTML_ERROR_HANDLER;
+    HtmlErrorHandler htmlErrorHandler = Html2Txt.SIMPLE_HTML_ERROR_HANDLER;
 
     private int pageLeftMarginWidth  /*= 0*/;
     private int pageRightMarginWidth = 1;
@@ -125,8 +135,27 @@ class Html2Txt {
             this.node = node;
         }
 
-        public Node
-        getNode() { return this.node; }
+        @Override public String
+        toString() {
+
+            String s = this.getClass().getName();
+
+            {
+                Locator l = XmlUtil.getLocation(this.node);
+                if (l != null) {
+                    String publicId = l.getPublicId();
+                    if (publicId != null) s += ", " + publicId;
+                    s += ", line " + l.getLineNumber() + ", column " + l.getColumnNumber();
+                }
+            }
+
+            {
+                String message = this.getLocalizedMessage();
+                if (message != null) s += ": " + message;
+            }
+
+            return s;
+        }
     }
 
     /** Handles {@link HtmlException}s. */
@@ -140,14 +169,16 @@ class Html2Txt {
 
     /**
      * Formats an HTML block element.
+     *
+     * @see Html2Txt#ALL_BLOCK_ELEMENTS
      */
     public
     interface BlockElementFormatter {
 
         /**
-         * Appends lines to the <var>result</var>. The first <var>leftMarginWidth</var> characters of each produced
+         * Appends lines to the <var>output</var>. The first <var>leftMarginWidth</var> characters of each produced
          * line are spaces (except for the first line, where the string produced by {@link Html2Txt.Bulleting#next()}
-         * is placed in the left margin, followed by up to <var>measure</var> characters.
+         * is placed in the left margin), followed by up to <var>measure</var> characters.
          */
         void
         format(
@@ -162,14 +193,16 @@ class Html2Txt {
 
     /**
      * Formats an HTML inline element.
+     *
+     * @see Html2Txt#ALL_INLINE_ELEMENTS
      */
     public
     interface InlineElementFormatter {
 
         /**
-         * Appends characters to the <var>result</var>; "{@code \n}" represents a "break" ("{@code <br />}").
+         * Appends characters to the <var>output</var>; "{@code \n}" represents a "break" ("{@code <br />}").
          */
-        void format(Html2Txt html2Txt, Element element, StringBuilder result) throws HtmlException;
+        void format(Html2Txt html2Txt, Element element, StringBuilder output) throws HtmlException;
     }
 
     interface Bulleting {
@@ -365,16 +398,20 @@ class Html2Txt {
      * Sets a custom {@link HtmlErrorHandler} on this object. The default handler is {@link
      * #SIMPLE_HTML_ERROR_HANDLER}.
      */
-    public void
+    public Html2Txt
     setErrorHandler(HtmlErrorHandler htmlErrorHandler) {
         this.htmlErrorHandler = htmlErrorHandler;
+        return this;
     }
 
     /**
      * The number of spaces that preceeds each line of output; defaults to zero.
      */
-    public void
-    setPageLeftMarginWidth(int pageLeftMarginWidth) { this.pageLeftMarginWidth = pageLeftMarginWidth; }
+    public Html2Txt
+    setPageLeftMarginWidth(int pageLeftMarginWidth) {
+        this.pageLeftMarginWidth = pageLeftMarginWidth;
+        return this;
+    }
 
     /**
      * The maximum length of output lines is "<var>pageWidth</var> - <var>rightMarginWidth</var>".
@@ -384,8 +421,11 @@ class Html2Txt {
      *
      * @see #setPageWidth(int)
      */
-    public void
-    setPageRightMarginWidth(int pageRightMarginWidth) { this.pageRightMarginWidth = pageRightMarginWidth; }
+    public Html2Txt
+    setPageRightMarginWidth(int pageRightMarginWidth) {
+        this.pageRightMarginWidth = pageRightMarginWidth;
+        return this;
+    }
 
     /**
      * The maximum length of output lines is "<var>pageWidth</var> - <var>rightMarginWidth</var>".
@@ -395,8 +435,8 @@ class Html2Txt {
      *
      * @see #setPageRightMarginWidth(int)
      */
-    public void
-    setPageWidth(int pageWidth) { this.pageWidth = pageWidth; }
+    public Html2Txt
+    setPageWidth(int pageWidth) { this.pageWidth = pageWidth; return this; }
 
     /**
      * Reads, scans and parses the HTML document in the {@code inputFile}, generates a plain text document, and
@@ -491,9 +531,9 @@ class Html2Txt {
                     this.formatBlocks(
                         this.pageLeftMarginWidth,
                         Bulleting.NONE,
+                        Bulleting.NONE,
                         this.pageWidth - this.pageLeftMarginWidth - this.pageRightMarginWidth,
-                        XmlUtil.iterable(bodyElement.getChildNodes()),
-                        output
+                        XmlUtil.iterable(bodyElement.getChildNodes()), output
                     );
                 }
             }
@@ -505,19 +545,21 @@ class Html2Txt {
         this.formatBlocks(
             this.pageLeftMarginWidth,
             Bulleting.NONE,
+            Bulleting.NONE,
             this.pageWidth - this.pageLeftMarginWidth - this.pageRightMarginWidth,
-            Collections.singletonList(documentElement),
-            output
+            Collections.singletonList(documentElement), output
         );
     }
 
     /**
-     * Formats a sequence of {@link Node#TEXT_NODE TEXT} nodes and HTML block {@link Node#ELEMENT_NODE ELEMENT} nodes.
+     * Formats a sequence of {@link Node#TEXT_NODE TEXT} nodes and HTML inline or block {@link Node#ELEMENT_NODE
+     * ELEMENT} nodes.
      */
-    private <N extends Node> void
+    <N extends Node> void
     formatBlocks(
         int                            leftMarginWidth,
-        Bulleting                      bulleting,
+        Bulleting                      inlineSubelementsBulleting,
+        Bulleting                      blockSubelementsBulleting,
         int                            measure,
         Iterable<N>                    nodes,
         Consumer<? super CharSequence> output
@@ -526,7 +568,7 @@ class Html2Txt {
         List<Node> inlineNodes = new ArrayList<Node>();
         for (Node n : nodes) {
             if (n.getNodeType() == Node.TEXT_NODE) {
-                inlineNodes.add(n);
+                if (!n.getTextContent().trim().isEmpty()) inlineNodes.add(n);
             } else
             if (Html2Txt.isInlineElement(n)) {
                 inlineNodes.add(n);
@@ -535,11 +577,10 @@ class Html2Txt {
                 if (!inlineNodes.isEmpty()) {
                     this.wordWrap(
                         leftMarginWidth,
-                        bulleting,
+                        inlineSubelementsBulleting,
                         measure,
                         this.getBlock(inlineNodes),
-                        output,
-                        inlineNodes.get(0) // ref
+                        output
                     );
                     inlineNodes.clear();
                 }
@@ -552,7 +593,7 @@ class Html2Txt {
                         new HtmlException(n, "Unexpected block element \"" + XmlUtil.toString(e) + "\" in block")
                     );
                 } else {
-                    bef.format(this, leftMarginWidth, bulleting, measure, e, output);
+                    bef.format(this, leftMarginWidth, blockSubelementsBulleting, measure, e, output);
                 }
             } else
             {
@@ -565,15 +606,13 @@ class Html2Txt {
         if (!inlineNodes.isEmpty()) {
             this.wordWrap(
                 leftMarginWidth,
-                bulleting,
+                inlineSubelementsBulleting,
                 measure,
                 this.getBlock(inlineNodes),
-                output,
-                inlineNodes.get(0) // ref
+                output
             );
             inlineNodes.clear();
         }
-
     }
 
     /**
@@ -588,8 +627,6 @@ class Html2Txt {
      * </p>
      * @param bulleting The string produced by {@link Bulleting#next()} is placed in the left margin of the first
      *                  line generated
-     * @param ref       Is used iff an {@link HtmlException} is thrown ({@link HtmlException}s have a reference to the
-     *                  "offending" node)
      */
     private void
     wordWrap(
@@ -597,8 +634,7 @@ class Html2Txt {
         Bulleting                      bulleting,
         int                            measure,
         String                         text,
-        Consumer<? super CharSequence> output,
-        Node                           ref
+        Consumer<? super CharSequence> output
     ) throws HtmlException {
 
         text = text.trim();
@@ -609,7 +645,7 @@ class Html2Txt {
         // From this point on, the first letter of "text" is always a non-space character.
 
         for (int nlidx = text.indexOf('\n'); nlidx != -1; nlidx = text.indexOf('\n')) {
-            this.wordWrap(leftMarginWidth, bulleting, measure, text.substring(0, nlidx), output, ref);
+            this.wordWrap(leftMarginWidth, bulleting, measure, text.substring(0, nlidx), output);
             for (nlidx++; nlidx < text.length() && text.charAt(nlidx) == ' '; nlidx++);
             if (nlidx == text.length()) return;
             text = text.substring(nlidx);
@@ -637,12 +673,18 @@ class Html2Txt {
             // Determine the point to wrap at.
             int idx1; // Space after the last word to keep in THIS line.
             int idx2; // First letter of the first word to put on the NEXT line.
+            IDXS:
             if (text.charAt(measure) == ' ') {
                 for (idx1 = measure; idx1 > 0 && text.charAt(idx1 - 1) == ' '; idx1--);
                 for (idx2 = measure + 1; idx2 < text.length() && text.charAt(idx2) == ' '; idx2++);
             } else
             {
-                for (idx2 = measure; idx2 > 0 && text.charAt(idx2 - 1) != ' '; idx2--);
+                for (idx2 = measure; idx2 > 0 && text.charAt(idx2 - 1) != ' '; idx2--) {
+                    if (text.charAt(idx2 - 1) == '-') {
+                        idx1 = idx2;
+                        break IDXS;
+                    }
+                }
                 if (idx2 == 0) {
                     for (idx1 = measure + 1; idx1 < text.length() && text.charAt(idx1) != ' '; idx1++);
                     if (idx1 == text.length()) break;
@@ -752,7 +794,7 @@ class Html2Txt {
     /**
      * @param tagName E.g. "{@code table}"
      */
-    @Nullable private static Element
+    @Nullable static Element
     isElement(Node node, String tagName) {
 
     	if (node.getNodeType() != Node.ELEMENT_NODE) return null;
@@ -797,13 +839,18 @@ class Html2Txt {
             final NumberingType numberingType;
             {
                 Attr s = element.getAttributeNode("type");
-                numberingType = (
-                    "a".equals(s) ? NumberingType.LOWERCASE_LETTERS :
-                    "A".equals(s) ? NumberingType.UPPERCASE_LETTERS :
-                    "i".equals(s) ? NumberingType.LOWERCASE_ROMAN_NUMERALS :
-                    "I".equals(s) ? NumberingType.UPPERCASE_ROMAN_LITERALS :
-                    NumberingType.ARABIC_DIGITS
-                );
+                if (s == null) {
+                    numberingType = NumberingType.ARABIC_DIGITS;
+                } else {
+                    String value = s.getValue();
+                    numberingType = (
+                        "a".equals(value) ? NumberingType.LOWERCASE_LETTERS :
+                        "A".equals(value) ? NumberingType.UPPERCASE_LETTERS :
+                        "i".equals(value) ? NumberingType.LOWERCASE_ROMAN_NUMERALS :
+                        "I".equals(value) ? NumberingType.UPPERCASE_ROMAN_LITERALS :
+                        NumberingType.ARABIC_DIGITS
+                    );
+                }
             }
 
             // Compute the index to start from.
@@ -820,13 +867,36 @@ class Html2Txt {
 
             html2Txt.formatBlocks(
                 leftMarginWidth + 5,
-                new Bulleting() {
+                Bulleting.NONE,        // inlineSubelementsBulleting
+                new Bulleting() {      // blockSubelementsBulleting
                     int nextValue = start;
                     @Override public String next() { return numberingType.toString(this.nextValue++) + "."; }
                 },
                 measure - 5,
-                XmlUtil.iterable(element.getChildNodes()),
-                output
+                XmlUtil.iterable(element.getChildNodes()), output
+            );
+        }
+    };
+
+    private static final BlockElementFormatter
+    LI_FORMATTER = new BlockElementFormatter() {
+
+        @Override public void
+        format(
+            Html2Txt                       html2Txt,
+            int                            leftMarginWidth,
+            Bulleting                      bulleting,
+            int                            measure,
+            Element                        element,
+            Consumer<? super CharSequence> output
+        ) throws HtmlException {
+
+            html2Txt.formatBlocks(
+                leftMarginWidth,
+                bulleting,      // inlineSubelementsBulleting
+                Bulleting.NONE, // blockSubelementsBulleting
+                measure,
+                XmlUtil.iterable(element.getChildNodes()), output
             );
         }
     };
@@ -895,605 +965,7 @@ class Html2Txt {
      * Formatter for the "{@code <table>}" HTML block element.
      */
     protected static final BlockElementFormatter
-    TABLE_FORMATTER = new BlockElementFormatter() {
-
-        @Override public void
-        format(
-            Html2Txt                       html2Txt,
-            int                            leftMarginWidth,
-            Bulleting                      bulleting,
-            int                            measure,
-            Element                        tableElement,
-            Consumer<? super CharSequence> output
-        ) throws HtmlException {
-
-            Table table = this.parse(html2Txt, tableElement);
-
-            Cell[][] grid = this.arrange(table);
-
-            // Format the table to the absolute minimum cell widths.
-            int[] minimumColumnWidths;
-            {
-                int[] columnMeasures = new int[grid[0].length];
-                this.formatCells(html2Txt, grid, columnMeasures, table.columnSeparator.length());
-                SortedMap<Integer, SortedMap<Integer, Integer>> minimumCellWidths = this.computeCellWidths(
-                    html2Txt,
-                    grid
-                );
-                minimumColumnWidths = this.computeColumnWidths(minimumCellWidths, grid[0].length);
-            }
-
-            int minimumTableWidth = this.computeTableWidth(
-                minimumColumnWidths,
-                table.leftBorder.length(),
-                table.columnSeparator.length(),
-                table.rightBorder.length()
-            );
-
-            int[] columnWidths;
-            if (measure <= minimumTableWidth) {
-                columnWidths = minimumColumnWidths;
-            } else {
-
-                // Format the table to its "natural" cell widths.
-                int[] naturalColumnWidths;
-                {
-                    int[] columnMeasures = new int[grid[0].length];
-                    Arrays.fill(columnMeasures, Integer.MAX_VALUE);
-                    this.formatCells(html2Txt, grid, columnMeasures, table.columnSeparator.length());
-                    SortedMap<Integer, SortedMap<Integer, Integer>> naturalCellWidths = this.computeCellWidths(
-                        html2Txt,
-                        grid
-                    );
-                    naturalColumnWidths = this.computeColumnWidths(naturalCellWidths, grid[0].length);
-                }
-
-                int naturalTableWidth = this.computeTableWidth(
-                    naturalColumnWidths,
-                    table.leftBorder.length(),
-                    table.columnSeparator.length(),
-                    table.rightBorder.length()
-                );
-
-                if (naturalTableWidth <= measure) {
-                    columnWidths = naturalColumnWidths;
-                    if (table.is100Percent) {
-                        this.spreadEvenly(measure - naturalTableWidth, columnWidths);
-                    }
-                } else {
-                    columnWidths = minimumColumnWidths;
-                    this.spreadEvenly(measure - minimumTableWidth, columnWidths);
-                    this.formatCells(html2Txt, grid, columnWidths, table.columnSeparator.length());
-                }
-            }
-
-            // Now compute the optimal row heights.
-            int[] rowHeights;
-            {
-                SortedMap<Integer, SortedMap<Integer, Integer>> cellHeights = this.computeCellHeights(
-                    html2Txt,
-                    grid
-                );
-                rowHeights = this.computeColumnWidths(cellHeights, grid.length);
-            }
-
-            // Non-null elements represent rowspanned cell contents.
-            @SuppressWarnings("unchecked") Producer<String>[] cellContents = new Producer[grid[0].length];
-
-            for (int rowno = 0;; rowno++) {
-
-                // Print top border resp. row separator resp. bottom border.
-                char c = (
-                    rowno == 0               ? table.topBorder    :
-                    rowno == grid.length - 1 ? table.bottomBorder :
-                    table.rowSeparator
-                );
-                if (c != '\0') {
-                    StringBuilder sb = new StringBuilder();
-                    sb.append(StringUtil.repeat(leftMarginWidth, ' '));
-                    sb.append(StringUtil.repeat(table.leftBorder.length(), '+'));
-                    for (int colno = 0; colno < grid[0].length; colno++) {
-                        if (cellContents[colno] != null) {
-                            sb.append(cellContents[colno].produce());
-                        } else {
-                            sb.append(StringUtil.repeat(columnWidths[colno], c));
-                        }
-                        // The "cross" at the intersection of cells' borders.
-                        sb.append(StringUtil.repeat(
-                            (colno == grid[0].length - 1 ? table.rightBorder : table.columnSeparator).length(),
-                            (rowno == 0 || (colno != grid[0].length - 1 && grid[rowno - 1][colno] == grid[rowno - 1][colno + 1]))
-                            && (colno != grid[0].length - 1 && grid[rowno][colno] == grid[rowno][colno + 1]) ? c : '+'
-                        ));
-                    }
-                    output.consume(sb.toString());
-                }
-
-                if (rowno == grid.length) break;
-                Cell[] row = grid[rowno];
-
-                // Print the row contents.
-                {
-
-                    // The segments of a line of the row.
-                    List<Producer<String>> segments = new ArrayList<Producer<String>>();
-
-                    // Left margin.
-                    segments.add(ProducerUtil.constantProducer(StringUtil.repeat(leftMarginWidth, ' ')));
-
-                    // Left border.
-                    segments.add(ProducerUtil.constantProducer(table.leftBorder));
-
-                    for (int colno = 0; colno < row.length;) {
-                        Cell cell = row[colno];
-
-                        // Next line-of-text of a cell.
-                        int w = columnWidths[colno];
-                        int colno2;
-                        for (colno2 = colno + 1; colno2 < row.length && row[colno2] == cell; colno2++) {
-                            w += table.columnSeparator.length() + columnWidths[colno2];
-                        }
-
-                        Producer<String> p = cellContents[colno];
-                        if (p == null) {
-                            List<CharSequence> lines = cell.lines;
-                            assert lines != null;
-                            p = ProducerUtil.concat(
-                                Html2Txt.rightPad(ProducerUtil.fromCollection(lines), w, ' '),
-                                ProducerUtil.constantProducer(StringUtil.repeat(w, ' '))
-                            );
-                        }
-                        if (rowno < grid.length - 1 && grid[rowno + 1][colno] == cell) {
-                            cellContents[colno] = p;
-                        } else {
-                            cellContents[colno] = null;
-                        }
-
-                        segments.add(p);
-
-                        colno = colno2;
-
-                        // Column separator resp. right border.
-                        segments.add(ProducerUtil.constantProducer(
-                            colno == row.length ? table.rightBorder : table.columnSeparator
-                        ));
-                    }
-
-                    // Now print all lines of the row contents.
-                    for (int i = 0; i < rowHeights[rowno]; i++) {
-                        StringBuilder sb = new StringBuilder();
-                        for (Producer<String> p : segments) {
-                            sb.append(p.produce());
-                        }
-                        output.consume(sb.toString());
-                    }
-                }
-            }
-        }
-
-        /**
-         * Fills {@link Cell#lines}, {@link Cell#width} and {@link Cell#height} while obeying the the given
-         * <var>columnMeasures</var>.
-         */
-        public void
-        formatCells(Html2Txt html2Txt, Cell[][] grid, int[] columnMeasures, int columnSeparatorWidth)
-        throws HtmlException {
-
-            for (int rowno = 0; rowno < grid.length; rowno++) {
-                Cell[] row = grid[rowno];
-                assert row.length == columnMeasures.length : row.length + "!=" + columnMeasures.length;
-                for (int colno = 0; colno < row.length;) {
-                    Cell cell = row[colno];
-
-                    if (rowno > 0 && grid[rowno - 1][colno] == cell) { colno++; continue; }
-
-                    if (colno > 0 && row[colno - 1] == cell) { colno++; continue; }
-
-                    int columnMeasure = columnMeasures[colno];
-                    int colno2;
-                    for (colno2 = colno + 1; colno2 < row.length && row[colno2] == cell; colno2++) {
-                        columnMeasure += columnSeparatorWidth + columnMeasures[colno2];
-                    }
-                    colno = colno2;
-
-                    List<CharSequence> lines = (cell.lines = new ArrayList<CharSequence>());
-                    html2Txt.formatBlocks(
-                        0,                                  // leftMarginWidth
-                        Bulleting.NONE,                     // bulleting
-                        columnMeasure,                      // measure
-                        cell.childNodes,                    // nodes
-                        ConsumerUtil.addToCollection(lines) // output
-                    );
-                    cell.width  = Html2Txt.maxLength(lines);
-                    cell.height = lines.size();
-                }
-            }
-        }
-
-        class Cell {
-
-            final Iterable<Node> childNodes;
-
-            @Nullable List<CharSequence> lines;
-            int                          width, height;
-
-            Cell(Iterable<Node> childNodes) { this.childNodes = childNodes; }
-        }
-
-        /**
-         * Creates a two-dimensional grid of (non-{@code null}) {@link Cell}s, where each {@code <td>} is referenced by
-         * {@code colspan} x {@code rowspan} tiles.
-         * <p>
-         *   Some tiles may be "filler" tiles. Such tiles may occur for "short" table rows, or for colspans/rowspans that
-         *   would otherwise cause overlaps.
-         * </p>
-         * <p>
-         *   Example:
-         * </p>
-         * <pre>
-         *    +-----+-----+-----+-----+
-         *    |  A  |  B  |  C  |#####|
-         *    +-----+-----+-----+-----+
-         *    |  D  |  E  |  F  |  G  |
-         *    +-----+-----+-----+-----+
-         *    |  H  |     |  J  |  K  |
-         *    +-----+  I  +-----+-----+
-         *    |#####|     |     L     |
-         *    +-----+-----+-----+-----+
-         *  </pre>
-         */
-        private Cell[][]
-        arrange(Table table) {
-            List<List<Cell> /*row*/> cells = new ArrayList<List<Cell>>();
-
-            // For each <td>...
-            int rowno = 0;
-            for (Tr tr : table.trs) {
-                int colno = 0;
-                for (Td td : tr.tds) {
-
-                    // Determine the right place for the tiles that represent the the <td>.
-                    COLNO:
-                    for (;; colno++) {
-                        for (int j = 0; j < td.rowspan; j++) {
-                            if (cells.size() <= rowno + j) continue;
-                            List<Cell> row = cells.get(rowno + j);
-                            if (row == null) continue;
-                            for (int i = 0; i < td.colspan; i++) {
-                                if (row.size() > colno + i && row.get(colno + i) != null) continue COLNO;
-                            }
-                        }
-                        break;
-                    }
-
-                    // At this point, "rowno" and "colno" point to the "right" place for the new cell.
-                    // Insert colspan x colspan tiles into the grid.
-                    Cell cell = new Cell(td.childNodes);
-                    for (int j = 0; j < td.rowspan; j++) {
-                        while (cells.size() <= rowno + j) cells.add(new ArrayList<Cell>());
-                        List<Cell> row = cells.get(rowno + j);
-                        for (int i = 0; i < td.colspan; i++) {
-                            while (row.size() <= colno + i) row.add(null);
-                            Cell prev = row.set(colno + i, cell);
-                            assert prev == null;
-                        }
-                    }
-
-                    colno += td.colspan;
-                }
-
-                rowno++;
-            }
-
-            int nrows = cells.size();
-            int ncols = 0;
-            for (List<Cell> row : cells) {
-                if (row.size() > ncols) ncols = row.size();
-            }
-
-            Cell[][] result = new Cell[nrows][ncols];
-            rowno = 0;
-            for (List<Cell> row : cells) {
-                int colno = 0;
-                for (Cell cell : row) {
-                    result[rowno][colno++] = cell;
-                }
-                rowno++;
-            }
-
-            // Put the "filler" tile into the empty places.
-            Cell filler = new Cell(Collections.<Node>emptyList());
-            filler.width = filler.height = 0;
-            filler.lines = Collections.emptyList();
-            for (rowno = 0; rowno < result.length; rowno++) {
-                Cell[] row = result[rowno];
-                for (int colno = 0; colno < row.length; colno++) {
-                    if (row[colno] == null) row[colno] = filler;
-                }
-            }
-
-            return result;
-        }
-
-        private int
-        computeTableWidth(int[] columnWidths, int leftBorderWidth, int columnSeparatorWidth, int rightBorderWidth) {
-            return leftBorderWidth + rightBorderWidth + (columnWidths.length - 1) * columnSeparatorWidth + this.sum(columnWidths);
-        }
-
-        private int
-        sum(int[] list) {
-            int result = 0;
-            for (Integer i : list) result += i;
-            return result;
-        }
-
-        /**
-         * @return Column widths suitable for the given <var>cellWidths</var>
-         */
-        private int[]
-        computeColumnWidths(SortedMap<Integer, SortedMap<Integer, Integer>> cellWidths, int ncols) {
-
-            int[] result = new int[ncols];
-            for (Entry<Integer, SortedMap<Integer, Integer>> e : cellWidths.entrySet()) {
-                int                         colspan     = e.getKey();
-                SortedMap<Integer, Integer> colno2Width = e.getValue();
-
-                for (Entry<Integer, Integer> e2 : colno2Width.entrySet()) {
-                    int colno     = e2.getKey();
-                    int cellWidth = e2.getValue();
-
-                    int tcw = 0;
-                    for (int i = colno; i < colno + colspan; i++) tcw += result[i];
-                    if (tcw < cellWidth) {
-                        int excess = cellWidth - tcw;
-
-                        this.spreadEvenly(excess, result, colno, colspan);
-                    }
-                }
-            }
-
-            return result;
-        }
-
-        private void
-        spreadEvenly(int excess, int[] values) {
-            this.spreadEvenly(excess, values, 0, values.length);
-        }
-
-        private void
-        spreadEvenly(int excess, int[] values, int off, int len) {
-
-            if (excess == 0) return;
-
-            int n = excess / len;
-            int nfrac = excess - (len * n);
-            int x = 0;
-            for (int i = 0; i < len; i++) {
-                int w = values[off + i] + n;
-                if ((x += nfrac) > len) {
-                    w++;
-                    x -= len;
-                }
-                values[off + i] = w;
-            }
-        }
-
-        class Table {
-
-            /** '\0' means "no border/separator". */
-            final char topBorder, rowSeparator, headingRowSeparator, bottomBorder;
-
-            /** "" means "no border/separator". */
-            final String leftBorder, columnSeparator, rightBorder;
-
-            final List<Tr> trs;
-
-            /** Whether to stretch the table to the full measure if it is more narrow. */
-            private final boolean is100Percent;
-
-            public Table(
-                char     topBorder,
-                char     rowSeparator,
-                char     headingRowSeparator,
-                char     bottomBorder,
-                String   leftBorder,
-                String   columnSeparator,
-                String   rightBorder,
-                boolean  is100Percent,
-                List<Tr> trs
-            ) {
-                this.topBorder           = topBorder;
-                this.rowSeparator        = rowSeparator;
-                this.headingRowSeparator = headingRowSeparator;
-                this.bottomBorder        = bottomBorder;
-                this.leftBorder          = leftBorder;
-                this.columnSeparator     = columnSeparator;
-                this.rightBorder         = rightBorder;
-                this.is100Percent        = is100Percent;
-                this.trs                 = trs;
-            }
-        }
-
-        class Tr {
-
-            /** Whether the "{@code <tr>}" contains one or more "{@code <th>}" subelements. */
-            final boolean isHeading;
-
-            /** The "{@code <td>}" and "{@code <th>}" subelements of this "{@code <tr>}". */
-            final List<Td> tds;
-
-            Tr(boolean isHeading, List<Td> tds) {
-                this.isHeading = isHeading;
-                this.tds       = tds;
-            }
-        }
-
-        class Td {
-
-            /** 1 or greater. */
-            final int rowspan, colspan;
-
-            final Iterable<Node> childNodes;
-
-            Td(int rowspan, int colspan, Iterable<Node> childNodes) {
-                this.rowspan    = rowspan;
-                this.colspan    = colspan;
-                this.childNodes = childNodes;
-
-            }
-        }
-
-        private Table
-        parse(Html2Txt html2Txt, Element tableElement) throws HtmlException {
-
-            final char   topBorder, rowSeparator, headingRowSeparator, bottomBorder;
-            final String leftBorder, columnSeparator, rightBorder;
-            {
-                Attr borderAttribute = tableElement.getAttributeNode("border");
-                String border = borderAttribute == null ? null : borderAttribute.getValue();
-                if ("1".equals(border)) {
-                    topBorder = rowSeparator = bottomBorder = '-';
-                    headingRowSeparator = '=';
-                    leftBorder = columnSeparator = rightBorder = "|";
-                } else
-                if ("2".equals(border)) {
-                    topBorder = rowSeparator = bottomBorder = '=';
-                    headingRowSeparator = '=';
-                    leftBorder = columnSeparator = rightBorder = "||";
-                } else
-                {
-                    topBorder = rowSeparator = headingRowSeparator = bottomBorder = '\0';
-                    leftBorder = rightBorder = "";
-                    columnSeparator = " ";
-                }
-            }
-
-            final boolean is100Percent;
-            {
-                Attr s = tableElement.getAttributeNode("width");
-                is100Percent = "100%".equals(s);
-            }
-
-            List<Tr> trs = new ArrayList<Tr>();
-            for (Node trNode : XmlUtil.iterable(tableElement.getChildNodes())) {
-
-                // Ignore whitespace text before, between and after <tr>s.
-                if (trNode.getNodeType() == Node.TEXT_NODE && trNode.getTextContent().trim().length() == 0) continue;
-
-                Element trElement;
-                if ((trElement = Html2Txt.isElement(trNode, "tr")) == null) {
-                    html2Txt.htmlErrorHandler.warning(new HtmlException(
-                        trNode,
-                        "Expected \"<tr>\" instead of \"" + XmlUtil.toString(trNode) + "\""
-                    ));
-                    continue;
-                }
-
-                boolean  rowHasTh = false;
-                List<Td> tds      = new ArrayList<Td>();
-                for (Node n : XmlUtil.iterable(trNode.getChildNodes())) {
-
-                    Element tdElement;
-                    if ((tdElement = Html2Txt.isElement(n, "th")) != null) {
-                        rowHasTh = true;
-                    } else
-                    if ((tdElement = Html2Txt.isElement(n, "td")) != null) {
-                        ;
-                    } else
-                    {
-                        html2Txt.htmlErrorHandler.warning(new HtmlException(n, "Expected \"<td>\" or \"<th>\""));
-                        continue;
-                    }
-
-                    int colspan;
-                    try {
-                        colspan = Math.max(1, Integer.parseInt(tdElement.getAttributeNode("colspan").getValue()));
-                    } catch (Exception e) {
-                        colspan = 1;
-                    }
-
-                    int rowspan;
-                    try {
-                        rowspan = Math.max(1,  Integer.parseInt(tdElement.getAttributeNode("rowspan").getValue()));
-                    } catch (Exception e) {
-                        rowspan = 1;
-                    }
-
-                    tds.add(new Td(rowspan, colspan, XmlUtil.iterable(tdElement.getChildNodes())));
-                }
-
-                trs.add(new Tr(rowHasTh, tds));
-            }
-
-            return new Table(
-                topBorder,
-                rowSeparator,
-                headingRowSeparator,
-                bottomBorder,
-                leftBorder,
-                columnSeparator,
-                rightBorder,
-                is100Percent,
-                trs
-            );
-        }
-
-        /**
-         * @return <var>colspan</var> => <var>colno</var> => <var>width</var>
-         */
-        private SortedMap<Integer, SortedMap<Integer, Integer>>
-        computeCellWidths(Html2Txt html2Txt, Cell[][] grid) {
-
-            SortedMap<Integer /*colspan*/, SortedMap<Integer /*colno*/, Integer /*width*/>>
-            result = new TreeMap<Integer, SortedMap<Integer,Integer>>();
-
-            for (int rowno = 0; rowno < grid.length; rowno++) {
-                Cell[] row = grid[rowno];
-                for (int colno = 0; colno < row.length;) {
-                    Cell cell = grid[rowno][colno];
-
-                    int colno2 = colno + 1;
-                    while (colno2 < row.length && row[colno2] == cell) colno2++;
-                    int colspan = colno2 - colno;
-
-                    SortedMap<Integer /*colno*/, Integer /*width*/> x = result.get(colspan);
-                    if (x == null) result.put(colspan, (x = new TreeMap<Integer, Integer>()));
-                    x.put(colno, cell.width);
-
-                    colno = colno2;
-                }
-            }
-
-            return result;
-        }
-
-        /**
-         * @return <var>rowspan</var> => <var>rowno</var> => <var>width</var>
-         */
-        private SortedMap<Integer, SortedMap<Integer, Integer>>
-        computeCellHeights(Html2Txt html2Txt, Cell[][] grid) {
-
-            SortedMap<Integer, SortedMap<Integer, Integer>> result = new TreeMap<Integer, SortedMap<Integer,Integer>>();
-
-            for (int rowno = 0; rowno < grid.length; rowno++) {
-                Cell[] row = grid[rowno];
-                for (int colno = 0; colno < row.length; colno++) {
-                    Cell cell = grid[rowno][colno];
-
-                    if (rowno > 0 && grid[rowno - 1][colno] == cell) continue;
-
-                    int rowno2 = rowno + 1;
-                    while (rowno2 < grid.length && grid[rowno2][colno] == cell) rowno2++;
-                    int rowspan = rowno2 - rowno;
-
-                    SortedMap<Integer, Integer> x = result.get(rowspan);
-                    if (x == null) result.put(rowspan, (x = new TreeMap<Integer, Integer>()));
-                    x.put(rowno, cell.height);
-                }
-            }
-
-            return result;
-        }
-    };
+    TABLE_FORMATTER = new TableFormatter();
 
     public static int
     maxLength(Iterable<? extends CharSequence> css) {
@@ -1522,10 +994,10 @@ class Html2Txt {
 
             html2Txt.formatBlocks(
                 leftMarginWidth + 3,
+                Bulleting.NONE,
                 new Bulleting() { @Override public String next() { return "*"; } },
                 measure - 3,
-                XmlUtil.iterable(element.getChildNodes()),
-                output
+                XmlUtil.iterable(element.getChildNodes()), output
             );
         }
     };
@@ -1645,10 +1117,10 @@ class Html2Txt {
 
             html2Txt.formatBlocks(
                 leftMarginWidth + this.indentation,
-                bulleting,
+                Bulleting.NONE,
+                Bulleting.NONE,
                 measure - this.indentation,
-                XmlUtil.iterable(element.getChildNodes()),
-                output
+                XmlUtil.iterable(element.getChildNodes()), output
             );
         }
     }
@@ -1705,6 +1177,7 @@ class Html2Txt {
         "header",     Html2Txt.IGNORE_BLOCK_ELEMENT_FORMATTER,
         "hgroup",     Html2Txt.IGNORE_BLOCK_ELEMENT_FORMATTER,
         "hr",         Html2Txt.HR_FORMATTER,
+        "li",         Html2Txt.LI_FORMATTER,
         "main",       Html2Txt.IGNORE_BLOCK_ELEMENT_FORMATTER,
         "nav",        Html2Txt.IGNORE_BLOCK_ELEMENT_FORMATTER,
         "noscript",   Html2Txt.NOP_BLOCK_ELEMENT_FORMATTER,
@@ -1749,7 +1222,7 @@ class Html2Txt {
     A_FORMATTER = new InlineElementFormatter() {
 
         @Override public void
-        format(Html2Txt html2Txt, Element element, StringBuilder result) throws HtmlException {
+        format(Html2Txt html2Txt, Element element, StringBuilder output) throws HtmlException {
             String name = element.getAttribute("name");
             String href = element.getAttribute("href");
             if (!name.isEmpty() && href.isEmpty()) {
@@ -1763,8 +1236,8 @@ class Html2Txt {
                 ;
             } else
             if (!href.isEmpty() && name.isEmpty()) {
-                result.append(html2Txt.getBlock(XmlUtil.iterable(element.getChildNodes())));
-                result.append(" (see ").append(href).append(')');
+                output.append(html2Txt.getBlock(XmlUtil.iterable(element.getChildNodes())));
+                output.append(" (see ").append(href).append(')');
             } else
             {
                 html2Txt.htmlErrorHandler.warning(
@@ -1778,13 +1251,13 @@ class Html2Txt {
     ABBR_FORMATTER = new InlineElementFormatter() {
 
         @Override public void
-        format(Html2Txt html2Txt, Element element, StringBuilder result) throws HtmlException {
+        format(Html2Txt html2Txt, Element element, StringBuilder output) throws HtmlException {
 
-            result.append(html2Txt.getBlock(XmlUtil.iterable(element.getChildNodes())));
+            output.append(html2Txt.getBlock(XmlUtil.iterable(element.getChildNodes())));
 
             String title = element.getAttribute("title");
             if (!title.isEmpty()) {
-                result.append(" (\"").append(title).append("\")");
+                output.append(" (\"").append(title).append("\")");
             }
         }
     };
@@ -1793,14 +1266,14 @@ class Html2Txt {
     BR_FORMATTER = new InlineElementFormatter() {
 
         @Override public void
-        format(Html2Txt html2Txt, Element element, StringBuilder result) throws HtmlException {
+        format(Html2Txt html2Txt, Element element, StringBuilder output) throws HtmlException {
 
             if (element.hasChildNodes()) {
                 html2Txt.htmlErrorHandler.warning(
                     new HtmlException(element, "\"<br>\" tag should not have subelements nor contain text")
                 );
             }
-            result.append('\n');
+            output.append('\n');
         }
     };
 
@@ -1810,31 +1283,31 @@ class Html2Txt {
     INPUT_FORMATTER = new InlineElementFormatter() {
 
         @Override public void
-        format(Html2Txt html2Txt, Element element, StringBuilder result) {
+        format(Html2Txt html2Txt, Element element, StringBuilder output) {
 
             String type = element.getAttribute("type");
             if ("checkbox".equals(type)) {
-                result.append("checked".equals(element.getAttribute("checked")) ? "[x]" : "[ ]");
+                output.append("checked".equals(element.getAttribute("checked")) ? "[x]" : "[ ]");
             } else
             if ("hidden".equals(type)) {
                 ;
             } else
             if ("password".equals(type)) {
-                result.append("[******]");
+                output.append("[******]");
             } else
             if ("radio".equals(type)) {
-                result.append("checked".equals(element.getAttribute("checked")) ? "(o)" : "( )");
+                output.append("checked".equals(element.getAttribute("checked")) ? "(o)" : "( )");
             } else
             if ("submit".equals(type)) {
                 String label = element.getAttribute("value");
                 if (label.isEmpty()) label = "Submit";
-                result.append("[ ").append(label).append(" ]");
+                output.append("[ ").append(label).append(" ]");
             } else
             if ("text".equals(type) || "".equals(type)) {
-                result.append('[').append(element.getAttribute("value")).append(']');
+                output.append('[').append(element.getAttribute("value")).append(']');
             } else
             {
-                result.append('[').append(type.toUpperCase()).append("-INPUT]");
+                output.append('[').append(type.toUpperCase()).append("-INPUT]");
             }
         }
     };
@@ -1843,13 +1316,13 @@ class Html2Txt {
     Q_FORMATTER = new InlineElementFormatter() {
 
         @Override public void
-        format(Html2Txt html2Txt, Element element, StringBuilder result) throws HtmlException {
+        format(Html2Txt html2Txt, Element element, StringBuilder output) throws HtmlException {
 
             final String cite = element.getAttribute("cite");
 
-            result.append('"');
-            result.append(html2Txt.getBlock(XmlUtil.iterable(element.getChildNodes())));
-            result.append("\" (").append(cite).append(')');
+            output.append('"');
+            output.append(html2Txt.getBlock(XmlUtil.iterable(element.getChildNodes())));
+            output.append("\" (").append(cite).append(')');
         }
     };
 
@@ -1877,11 +1350,11 @@ class Html2Txt {
         }
 
         @Override public void
-        format(Html2Txt html2Txt, Element element, StringBuilder result) throws HtmlException {
+        format(Html2Txt html2Txt, Element element, StringBuilder output) throws HtmlException {
 
-            result.append(this.prefix);
-            result.append(html2Txt.getBlock(XmlUtil.iterable(element.getChildNodes())));
-            result.append(this.suffix);
+            output.append(this.prefix);
+            output.append(html2Txt.getBlock(XmlUtil.iterable(element.getChildNodes())));
+            output.append(this.suffix);
         }
     }
 
@@ -1889,7 +1362,7 @@ class Html2Txt {
     NYI_INLINE_ELEMENT_FORMATTER = new InlineElementFormatter() {
 
         @Override public void
-        format(Html2Txt html2Txt, Element element, StringBuilder result) throws HtmlException {
+        format(Html2Txt html2Txt, Element element, StringBuilder output) throws HtmlException {
 
             html2Txt.htmlErrorHandler.warning(
                 new HtmlException(
@@ -1898,7 +1371,7 @@ class Html2Txt {
                 )
             );
 
-            result.append(html2Txt.getBlock(XmlUtil.iterable(element.getChildNodes())));
+            output.append(html2Txt.getBlock(XmlUtil.iterable(element.getChildNodes())));
         }
     };
 

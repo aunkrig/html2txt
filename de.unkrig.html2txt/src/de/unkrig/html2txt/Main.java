@@ -33,11 +33,9 @@ import java.io.PrintWriter;
 import javax.xml.transform.SourceLocator;
 import javax.xml.transform.TransformerException;
 
-import org.xml.sax.Locator;
 import org.xml.sax.SAXParseException;
 
 import de.unkrig.commons.io.IoUtil;
-import de.unkrig.commons.text.xml.XmlUtil;
 import de.unkrig.html2txt.Html2Txt.HtmlException;
 
 /**
@@ -162,22 +160,7 @@ class Main {
             }
             System.exit(1);
         } catch (HtmlException he) {
-
-            Locator l = XmlUtil.getLocation(he.getNode());
-            if (l == null) {
-                System.err.println(he.getMessage());
-            } else {
-                String publicId = l.getPublicId();
-                System.err.println(
-                    (publicId != null ? publicId + ", line " : "Line ")
-                    + l.getLineNumber()
-                    + ", column "
-                    + l.getColumnNumber()
-                    + ": "
-                    + he.getMessage()
-                    + '.'
-                );
-            }
+            System.err.println(he);
             System.exit(1);
         }
     }
