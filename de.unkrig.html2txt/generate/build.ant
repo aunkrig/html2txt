@@ -9,7 +9,7 @@
 	<target name="usage.txt">
 
 		<echo message="*** Generating HTML documentation..." />
-		<javadoc destdir="src" failonerror="true">
+		<javadoc destdir="src">
 			<doclet name="de.unkrig.doclet.main.MainDoclet" path="generate/de.unkrig.doclet.jar" />
 			<fileset file="src/de/unkrig/html2txt/Main.java" />
 			<classpath>
@@ -20,6 +20,7 @@
 			</classpath>
 		</javadoc>
 		
+		<echo message="*** Converting HTML documentation to TXT..." />
 		<java classname="de.unkrig.html2txt.Main">
 			<classpath>
 				<pathelement location="bin" />
