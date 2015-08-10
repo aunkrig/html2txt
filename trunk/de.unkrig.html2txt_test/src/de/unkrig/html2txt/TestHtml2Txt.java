@@ -26,8 +26,6 @@
 
 package de.unkrig.html2txt;
 
-import static org.junit.Assert.assertEquals;
-
 import java.io.StringReader;
 import java.io.StringWriter;
 
