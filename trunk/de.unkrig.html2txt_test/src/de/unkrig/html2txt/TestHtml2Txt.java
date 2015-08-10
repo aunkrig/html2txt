@@ -34,6 +34,7 @@ import java.io.StringWriter;
 import javax.xml.parsers.ParserConfigurationException;
 import javax.xml.transform.TransformerException;
 
+import org.junit.Assert;
 import org.junit.Test;
 import org.xml.sax.SAXException;
 
@@ -43,7 +44,7 @@ public class TestHtml2Txt {
 
     @Test public void
     testSimple() throws Exception {
-        
+
         assertHtml2Txt((
             ""
             + "BLA\r\n"
@@ -56,7 +57,92 @@ public class TestHtml2Txt {
             + "</html>\n"
         ));
     }
-    
+
+    @Test public void
+    testUl() throws Exception {
+
+        assertHtml2Txt((
+            ""
+            + "zero\r\n"
+            + " * one\r\n"
+            + "   one-and-a-half\r\n"
+            + " * two\r\n"
+            + "    * three\r\n"
+            + "      three-and-a-half\r\n"
+            + "    * four\r\n"
+            + "      five\r\n"
+            + " * five\r\n"
+        ), (
+            ""
+            + "<html>\n"
+            + "  <body>\n"
+            + "  zero\n"
+            + "    <ul>\n"
+            + "      <li>one</li>\n"
+            + "      one-and-a-half\n"
+            + "      <li>two</li>\n"
+            + "      <ul>\n"
+            + "        <li>three</li>\n"
+            + "        three-and-a-half\n"
+            + "        <li>four<p>five</p></li>\n"
+            + "      </ul>\n"
+            + "      <li>five</li>\n"
+            + "    </ul>\n"
+            + "  </body>\n"
+            + "</html>\n"
+        ));
+    }
+
+    @Test public void
+    testOl() throws Exception {
+
+        assertHtml2Txt((
+            ""
+            + "  1. one\r\n"
+            + "     one-and-a-half\r\n"
+            + "  2. two\r\n"
+            + "      * three\r\n"
+            + "        three-and-a-half\r\n"
+            + "      * four\r\n"
+            + "        five\r\n"
+            + "  3. five\r\n"
+            + "       a. six\r\n"
+            + "          six-and-a-half\r\n"
+            + "       b. seven\r\n"
+            + "            i. eight\r\n"
+            + "               eight-and-a-half\r\n"
+            + "           ii. nine\r\n"
+            + "               ten\r\n"
+            + "       c. eleven\r\n"
+            + "  4. twelve\r\n"
+        ), (
+            ""
+            + "<ol>\n"
+            + "  <li>one</li>\n"
+            + "  one-and-a-half\n"
+            + "  <li>two</li>\n"
+            + "  <ul>\n"
+            + "    <li>three</li>\n"
+            + "    three-and-a-half\n"
+            + "    <li>four<p>five</p></li>\n"
+            + "  </ul>\n"
+            + "  <li>five</li>\n"
+            + "  <ol type=\"a\">\n"
+            + "    <li>six</li>\n"
+            + "    six-and-a-half\n"
+            + "    <li>seven</li>\n"
+            + "    <ol type=\"i\">\n"
+            + "      <li>eight</li>\n"
+            + "      eight-and-a-half\n"
+            + "      <li>nine<p>ten</p></li>\n"
+            + "    </ol>\n"
+            + "    <li>eleven</li>\n"
+            + "  </ol>\n"
+            + "  <li>twelve</li>\n"
+            + "</ol>\n"
+        ));
+    }
+
     @Test public void
     testTable() throws Exception {
 
@@ -76,10 +162,10 @@ public class TestHtml2Txt {
             + "</html>\n"
         ));
     }
-    
+
     @Test public void
     testTableBorder1() throws Exception {
-        
+
         assertHtml2Txt((
             ""
                 + "+-----+-----+\r\n"
@@ -102,7 +188,7 @@ public class TestHtml2Txt {
 
     @Test public void
     testTableBorder2() throws Exception {
-        
+
         assertHtml2Txt((
             ""
             + "++=====++=====++\r\n"
@@ -122,10 +208,10 @@ public class TestHtml2Txt {
             + "</html>\n"
         ));
     }
-    
+
     @Test public void
     testTableColspan() throws Exception {
-        
+
         assertHtml2Txt((
             ""
                 + "+----+----------+------+\r\n"
@@ -145,10 +231,10 @@ public class TestHtml2Txt {
                     + "</html>\n"
                 ));
     }
-    
+
     @Test public void
     testTableRowspan() throws Exception {
-        
+
         assertHtml2Txt((
             ""
             + "+----+----+----+\r\n"
@@ -169,11 +255,175 @@ public class TestHtml2Txt {
         ));
     }
 
+    @Test public void
+    testTh() throws Exception {
+
+        assertHtml2Txt((
+            ""
+            + "+----+----+-----+\r\n"
+            + "|eins|zwei|drei |\r\n"
+            + "+====+----+=====+\r\n"
+            + "|vier|fünf|sechs|\r\n"
+            + "+----+----+-----+\r\n"
+        ), (
+            ""
+            + "<html>\n"
+            + "  <body>\n"
+            + "    <table border=\"1\">\n"
+            + "      <tr><th>eins</th><td>zwei</td><th>drei</th></tr>\n"
+            + "      <tr><td>vier</td><td>fünf</td><td>sechs</td></tr>\n"
+            + "    </table>\n"
+            + "  </body>\n"
+            + "</html>\n"
+        ));
+    }
+
+    @Test public void
+    testBig1() throws Exception {
+
+        assertHtml2Txt((
+            ""
+            + "+--------------------------------------+--------------------------------------+\r\n"
+            + "|one two three four five six seven     |alpha                                 |\r\n"
+            + "|eight nine ten eleven twelve thirteen |                                      |\r\n"
+            + "|fourteen fifteen sixteen seventeen    |                                      |\r\n"
+            + "|eighteen nineteen twenty twenty-one   |                                      |\r\n"
+            + "|twenty-two twenty-three twenty-four   |                                      |\r\n"
+            + "|twenty-five                           |                                      |\r\n"
+            + "+--------------------------------------+--------------------------------------+\r\n"
+            + "|beta                                  |one two three four five six seven     |\r\n"
+            + "|                                      |eight nine ten eleven twelve thirteen |\r\n"
+            + "|                                      |fourteen fifteen sixteen seventeen    |\r\n"
+            + "|                                      |eighteen nineteen twenty twenty-one a |\r\n"
+            + "|                                      |b c twenty-two twenty-three twenty-   |\r\n"
+            + "|                                      |four twenty-five                      |\r\n"
+            + "+--------------------------------------+--------------------------------------+\r\n"
+        ), (
+            ""
+            + "<html>\n"
+            + "  <body>\n"
+            + "    <table border=\"1\">\n"
+            + "      <tr>\n"
+            + "        <td>\n"
+            + "          one two three four five six seven eight nine ten eleven twelve thirteen fourteen\n"
+            + "          fifteen sixteen seventeen eighteen nineteen twenty twenty-one twenty-two twenty-three\n"
+            + "          twenty-four twenty-five\n"
+            + "        </td>\n"
+            + "        <td>alpha</td>\n"
+            + "      </tr>\n"
+            + "      <tr>\n"
+            + "        <td>beta</td>\n"
+            + "        <td>\n"
+            + "          one two three four five six seven eight nine ten eleven twelve thirteen fourteen\n"
+            + "          fifteen sixteen seventeen eighteen nineteen twenty twenty-one a b c twenty-two twenty-three\n"
+            + "          twenty-four twenty-five\n"
+            + "        </td>\n"
+            + "      </tr>\n"
+            + "    </table>\n"
+            + "  </body>\n"
+            + "</html>\n"
+        ));
+    }
+
+    @Test public void
+    testBig2() throws Exception {
+
+        assertHtml2Txt((
+            ""
+            + "   +------------+------------+\r\n"
+            + "   |one         |alpha       |\r\n"
+            + "   |two         |            |\r\n"
+            + "   |three       |            |\r\n"
+            + "   |four        |            |\r\n"
+            + "   |five        |            |\r\n"
+            + "   |six         |            |\r\n"
+            + "   |seven       |            |\r\n"
+            + "   |eight       |            |\r\n"
+            + "   |nine        |            |\r\n"
+            + "   |ten         |            |\r\n"
+            + "   |eleven      |            |\r\n"
+            + "   |twelve      |            |\r\n"
+            + "   |thirteen    |            |\r\n"
+            + "   |fourteen    |            |\r\n"
+            + "   |fifteen     |            |\r\n"
+            + "   |sixteen     |            |\r\n"
+            + "   |seventeen   |            |\r\n"
+            + "   |eighteen    |            |\r\n"
+            + "   |nineteen    |            |\r\n"
+            + "   |twenty      |            |\r\n"
+            + "   |twenty-one  |            |\r\n"
+            + "   |twenty-two  |            |\r\n"
+            + "   |twenty-three|            |\r\n"
+            + "   |twenty-four |            |\r\n"
+            + "   |twenty-five |            |\r\n"
+            + "   +------------+------------+\r\n"
+            + "   |beta        |one         |\r\n"
+            + "   |            |two         |\r\n"
+            + "   |            |three       |\r\n"
+            + "   |            |four        |\r\n"
+            + "   |            |five        |\r\n"
+            + "   |            |six         |\r\n"
+            + "   |            |seven       |\r\n"
+            + "   |            |eight       |\r\n"
+            + "   |            |nine        |\r\n"
+            + "   |            |ten         |\r\n"
+            + "   |            |eleven      |\r\n"
+            + "   |            |twelve      |\r\n"
+            + "   |            |thirteen    |\r\n"
+            + "   |            |fourteen    |\r\n"
+            + "   |            |fifteen     |\r\n"
+            + "   |            |sixteen     |\r\n"
+            + "   |            |seventeen   |\r\n"
+            + "   |            |eighteen    |\r\n"
+            + "   |            |nineteen    |\r\n"
+            + "   |            |twenty      |\r\n"
+            + "   |            |twenty-one  |\r\n"
+            + "   |            |a           |\r\n"
+            + "   |            |b           |\r\n"
+            + "   |            |c           |\r\n"
+            + "   |            |twenty-two  |\r\n"
+            + "   |            |twenty-three|\r\n"
+            + "   |            |twenty-four |\r\n"
+            + "   |            |twenty-five |\r\n"
+            + "   +------------+------------+\r\n"
+        ), (
+            ""
+            + "<html>\n"
+            + "  <body>\n"
+            + "    <table border=\"1\">\n"
+            + "      <tr>\n"
+            + "        <td>\n"
+            + "          one two three four five six seven eight nine ten eleven twelve thirteen fourteen\n"
+            + "          fifteen sixteen seventeen eighteen nineteen twenty twenty-one twenty-two twenty-three\n"
+            + "          twenty-four twenty-five\n"
+            + "        </td>\n"
+            + "        <td>alpha</td>\n"
+            + "      </tr>\n"
+            + "      <tr>\n"
+            + "        <td>beta</td>\n"
+            + "        <td>\n"
+            + "          one two three four five six seven eight nine ten eleven twelve thirteen fourteen\n"
+            + "          fifteen sixteen seventeen eighteen nineteen twenty twenty-one a b c twenty-two twenty-three\n"
+            + "          twenty-four twenty-five\n"
+            + "        </td>\n"
+            + "      </tr>\n"
+            + "    </table>\n"
+            + "  </body>\n"
+            + "</html>\n"
+        ), new Html2Txt().setPageLeftMarginWidth(3).setPageRightMarginWidth(5).setPageWidth(9));
+    }
+
     private void
     assertHtml2Txt(String expected, String html)
     throws ParserConfigurationException, SAXException, TransformerException, HtmlException {
+        assertHtml2Txt(expected, html, new Html2Txt());
+    }
+
+    private void
+    assertHtml2Txt(String expected, String html, Html2Txt html2Txt)
+        throws ParserConfigurationException, SAXException, TransformerException, HtmlException {
         StringWriter sw = new StringWriter();
-        new Html2Txt().html2txt(new StringReader(html), sw);
-        assertEquals(expected, sw.toString());
+        html2Txt.html2txt(new StringReader(html), sw);
+        Assert.assertEquals(expected, sw.toString());
     }
 }
