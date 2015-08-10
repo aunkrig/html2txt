@@ -568,7 +568,7 @@ class Html2Txt {
         List<Node> inlineNodes = new ArrayList<Node>();
         for (Node n : nodes) {
             if (n.getNodeType() == Node.TEXT_NODE) {
-                if (!n.getTextContent().trim().isEmpty()) inlineNodes.add(n);
+                inlineNodes.add(n);
             } else
             if (Html2Txt.isInlineElement(n)) {
                 inlineNodes.add(n);
