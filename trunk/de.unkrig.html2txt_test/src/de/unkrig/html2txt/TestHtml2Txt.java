@@ -57,6 +57,76 @@ public class TestHtml2Txt {
     }
 
     @Test public void
+    testMarkup() throws Exception {
+
+        assertHtml2Txt((
+            ""
+            + "This is a link (see \"http://unkrig.de\").\r\n"
+            + "This is an anchor.\r\n"
+            + "This is an abbreviation.\r\n"
+            + "This is an acronym.\r\n"
+            + "This is *bold text*.\r\n"
+            + "This is big text.\r\n"
+            + "This is [ a button ].\r\n"
+            + "This is a citation.\r\n"
+            + "This is code.\r\n"
+            + "This is dfn.\r\n"
+            + "This text is <emphasized>.\r\n"
+            + "This is <text in italics>.\r\n"
+            + "This is an image: [IMG]\r\n"
+            + "This is an input control: []\r\n"
+            + "This is [ keyboard text ].\r\n"
+            + "This is a label.\r\n"
+            + "This is \"a quote\".\r\n"
+            + "This is a sample.\r\n"
+            + "This is [ a select form element ].\r\n"
+            + "This is small text.\r\n"
+            + "This is a span element.\r\n"
+            + "This is *strong text*.\r\n"
+            + "This is subscript text.\r\n"
+            + "This is ^superscript text.\r\n"
+            + "This is [ a textarea form element ].\r\n"
+            + "This is teletype-style text.\r\n"
+            + "This is _underlined text_.\r\n"
+            + "This is <variable text>.\r\n"
+        ), (
+            ""
+            + "<html>\n"
+            + "  <body>\n"
+            + "    This is <a href=\"http://unkrig.de\">a link</a>.<br />\r\n"
+            + "    This is <a name=\"middle\" />an anchor.<br />\r\n"
+            + "    This is <abbr>an abbreviation</abbr>.<br />\r\n"
+            + "    This is <acronym>an acronym</acronym>.<br />\r\n"
+            + "    This is <b>bold text</b>.<br />\r\n"
+            + "    This is <big>big text</big>.<br />\r\n"
+            + "    This is <button>a button</button>.<br />\r\n"
+            + "    This is <cite>a citation</cite>.<br />\r\n"
+            + "    This is <code>code</code>.<br />\r\n"
+            + "    This is <dfn>dfn</dfn>.<br />\r\n"
+            + "    This text is <em>emphasized</em>.<br />\r\n"
+            + "    This is <i>text in italics</i>.<br />\r\n"
+            + "    This is an image: <img /><br />\r\n"
+            + "    This is an input control: <input /><br />\r\n"
+            + "    This is <kbd>keyboard text</kbd>.<br />\r\n"
+            + "    This is <label>a label</label>.<br />\r\n"
+            + "    This is <q>a quote</q>.<br />\r\n"
+            + "    This is <samp>a sample</samp>.<br />\r\n"
+            + "    This is <select>a select form element</select>.<br />\r\n"
+            + "    This is <small>small text</small>.<br />\r\n"
+            + "    This is <span>a span element</span>.<br />\r\n"
+            + "    This is <strong>strong text</strong>.<br />\r\n"
+            + "    This is <sub>subscript text</sub>.<br />\r\n"
+            + "    This is <sup>superscript text</sup>.<br />\r\n"
+            + "    This is <textarea>a textarea form element</textarea>.<br />\r\n"
+            + "    This is <tt>teletype-style text</tt>.<br />\r\n"
+            + "    This is <u>underlined text</u>.<br />\r\n"
+            + "    This is <var>variable text</var>.\r\n"
+            + "  </body>\n"
+            + "</html>\n"
+        ));
+    }
+
+    @Test public void
     testUl() throws Exception {
 
         assertHtml2Txt((
