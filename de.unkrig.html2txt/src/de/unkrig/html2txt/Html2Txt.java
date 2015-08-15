@@ -35,7 +35,6 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
-import java.util.regex.Pattern;
 
 import javax.xml.parsers.DocumentBuilder;
 import javax.xml.parsers.DocumentBuilderFactory;
@@ -103,6 +102,9 @@ class Html2Txt {
         @Override public void error(HtmlException e)      throws HtmlException { throw e; }
     };
 
+    /**
+     * The handler for any HTML-related warnings, errors and fatal errors that may occur during conversion.
+     */
     HtmlErrorHandler htmlErrorHandler = Html2Txt.SIMPLE_HTML_ERROR_HANDLER;
 
     private int pageLeftMarginWidth  /*= 0*/;
@@ -473,6 +475,9 @@ class Html2Txt {
         this.html2txt(document, output);
     }
 
+    /**
+     * Generates a plain text document from the given HTML <var>document</var>, and writes it to the {@code output}.
+     */
     public void
     html2txt(final Document document, Writer output) throws HtmlException {
 
@@ -533,7 +538,8 @@ class Html2Txt {
                         Bulleting.NONE,
                         Bulleting.NONE,
                         this.pageWidth - this.pageLeftMarginWidth - this.pageRightMarginWidth,
-                        XmlUtil.iterable(bodyElement.getChildNodes()), output
+                        XmlUtil.iterable(bodyElement.getChildNodes()),
+                        output
                     );
                 }
             }
@@ -547,7 +553,8 @@ class Html2Txt {
             Bulleting.NONE,
             Bulleting.NONE,
             this.pageWidth - this.pageLeftMarginWidth - this.pageRightMarginWidth,
-            Collections.singletonList(documentElement), output
+            Collections.singletonList(documentElement),
+            output
         );
     }
 
@@ -797,10 +804,10 @@ class Html2Txt {
     @Nullable static Element
     isElement(Node node, String tagName) {
 
-    	if (node.getNodeType() != Node.ELEMENT_NODE) return null;
-    	Element e = (Element) node;
+        if (node.getNodeType() != Node.ELEMENT_NODE) return null;
+        Element e = (Element) node;
 
-    	return tagName.equals(e.getTagName()) ? e : null;
+        return tagName.equals(e.getTagName()) ? e : null;
     }
 
     private static final BlockElementFormatter
@@ -873,7 +880,8 @@ class Html2Txt {
                     @Override public String next() { return numberingType.toString(this.nextValue++) + "."; }
                 },
                 measure - 5,
-                XmlUtil.iterable(element.getChildNodes()), output
+                XmlUtil.iterable(element.getChildNodes()),
+                output
             );
         }
     };
@@ -896,7 +904,8 @@ class Html2Txt {
                 bulleting,      // inlineSubelementsBulleting
                 Bulleting.NONE, // blockSubelementsBulleting
                 measure,
-                XmlUtil.iterable(element.getChildNodes()), output
+                XmlUtil.iterable(element.getChildNodes()),
+                output
             );
         }
     };
@@ -967,6 +976,9 @@ class Html2Txt {
     protected static final BlockElementFormatter
     TABLE_FORMATTER = new TableFormatter();
 
+    /**
+     * @return The length of the longest of the <var>css</var>, or {@code 0} iff <var>css</var> is empty
+     */
     public static int
     maxLength(Iterable<? extends CharSequence> css) {
 
@@ -997,7 +1009,8 @@ class Html2Txt {
                 Bulleting.NONE,
                 new Bulleting() { @Override public String next() { return "*"; } },
                 measure - 3,
-                XmlUtil.iterable(element.getChildNodes()), output
+                XmlUtil.iterable(element.getChildNodes()),
+                output
             );
         }
     };
@@ -1120,7 +1133,8 @@ class Html2Txt {
                 Bulleting.NONE,
                 Bulleting.NONE,
                 measure - this.indentation,
-                XmlUtil.iterable(element.getChildNodes()), output
+                XmlUtil.iterable(element.getChildNodes()),
+                output
             );
         }
     }
@@ -1286,8 +1300,6 @@ class Html2Txt {
             output.append("[IMG]");
         }
     };
-
-    protected static final Pattern DECIMAL_INTEGER = Pattern.compile("\\d+");
 
     private static final InlineElementFormatter
     INPUT_FORMATTER = new InlineElementFormatter() {
@@ -1470,6 +1482,10 @@ class Html2Txt {
         };
     }
 
+    /**
+     * Creates and returns a {@link Consumer} that forwards its subjects to the <var>delegate</var>, with trailing
+     * spaces ({@code ' '}) removed.
+     */
     public static Consumer<CharSequence>
     rightTrim(final Consumer<? super String> delegate) {
 

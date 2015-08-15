@@ -65,11 +65,15 @@ class TableFormatter implements BlockElementFormatter {
         Consumer<? super CharSequence> output
     ) throws HtmlException {
 
+        // Parse the elements into a (very simple) abstract model.
         Table table = this.parse(html2Txt, tableElement);
 
+        // Now transform the model into a "grid", i.e. a two-dimensional array of tiles. ROWSPANs and COLSPANs are
+        // represented by MULTIPLE array elements pointing to the SAME Cell object.
         Cell[][] grid = this.arrange(table);
 
-        // Format the table to the absolute minimum cell widths.
+        // Format the table to the absolute minimum cell widths in order to compute the absolute minimum column
+        // widths. This process also honors the minimum widths of COLSPANned cells.
         int[] minimumColumnWidths;
         {
             int[] columnMeasures = new int[grid[0].length];
@@ -78,9 +82,11 @@ class TableFormatter implements BlockElementFormatter {
                 html2Txt,
                 grid
             );
-            minimumColumnWidths = TableFormatter.computeColumnWidths(minimumCellWidths, grid[0].length);
+            minimumColumnWidths = TableFormatter.computeColumnWidths(minimumCellWidths);
         }
 
+        // Now compute the minimum table width by adding the minimum column widths and the left and right borders and
+        // the column separators.
         int minimumTableWidth = TableFormatter.computeTableWidth(
             minimumColumnWidths,
             table.leftBorder.length(),
@@ -88,12 +94,15 @@ class TableFormatter implements BlockElementFormatter {
             table.rightBorder.length()
         );
 
+        // Now determine the "best" values for the ACTUAL column widths.
         int[] columnWidths;
         if (measure <= minimumTableWidth) {
+
+            // Even the minimum table width is too wide for the line measure.
             columnWidths = minimumColumnWidths;
         } else {
 
-            // Format the table to its "natural" cell widths.
+            // Now format the table cells to their "natural" widths.
             int[] naturalColumnWidths;
             {
                 int[] columnMeasures = new int[grid[0].length];
@@ -103,7 +112,7 @@ class TableFormatter implements BlockElementFormatter {
                     html2Txt,
                     grid
                 );
-                naturalColumnWidths = TableFormatter.computeColumnWidths(naturalCellWidths, grid[0].length);
+                naturalColumnWidths = TableFormatter.computeColumnWidths(naturalCellWidths);
             }
 
             int naturalTableWidth = TableFormatter.computeTableWidth(
@@ -114,28 +123,43 @@ class TableFormatter implements BlockElementFormatter {
             );
 
             if (naturalTableWidth <= measure) {
+
+                // The table with all its cells formatted to their "natural" widths fits the line measure.
                 columnWidths = naturalColumnWidths;
                 if (table.is100Percent) {
+
+                    // We have "<table width='100%'>", so stretch the table horizontally to take up the measure
+                    // entirely.
                     TableFormatter.spreadEvenly(measure - naturalTableWidth, columnWidths);
+                    TableFormatter.formatCells(html2Txt, grid, columnWidths, table.columnSeparator.length());
                 }
             } else {
+
+                // The table, with its cells formatted to their "natural" widths, does not fit the measure, so
+                // fall back to the MINIMUM column widths and spread the available horizontal space evenly on the
+                // columns.
                 columnWidths = minimumColumnWidths;
                 TableFormatter.spreadEvenly(measure - minimumTableWidth, columnWidths);
                 TableFormatter.formatCells(html2Txt, grid, columnWidths, table.columnSeparator.length());
             }
         }
 
-        // Now compute the optimal row heights.
+        // Now compute the row heights. This process also honors the heights of ROWSPANned cells.
         int[] rowHeights;
         {
             SortedMap<Integer, SortedMap<Integer, Integer>> cellHeights = TableFormatter.computeCellHeights(
                 html2Txt,
                 grid
             );
-            rowHeights = TableFormatter.computeColumnWidths(cellHeights, grid.length);
+            rowHeights = TableFormatter.computeRowHeights(cellHeights);
         }
 
-        // Non-null elements represent rowspanned cell contents.
+        // At this point, the "grid" is perfectly formatted, and "cellWidths" and "rowHights" reflect the desired
+        // values.
+
+        // So now we actually "render" the table.
+
+        // Non-null elements represent ROWSPANned cell contents.
         @SuppressWarnings("unchecked") Producer<String>[] cellContents = new Producer[grid[0].length];
 
         for (int rowno = 0;; rowno++) {
@@ -148,22 +172,39 @@ class TableFormatter implements BlockElementFormatter {
             );
             if (c != '\0') {
                 StringBuilder sb = new StringBuilder();
-                sb.append(StringUtil.repeat(leftMarginWidth, ' '));
-                sb.append(StringUtil.repeat(table.leftBorder.length(), '+'));
+                sb.append(StringUtil.repeat(leftMarginWidth, ' '));           // Print left margin.
+                sb.append(StringUtil.repeat(table.leftBorder.length(), '+')); // Print table's left border.
                 for (int colno = 0; colno < grid[0].length; colno++) {
                     if (cellContents[colno] != null) {
+
+                        // We have a ROWSPANned cell; instead of a row separator, print one line of cell content.
                         sb.append(cellContents[colno].produce());
                     } else {
-                        char c2 = table.headingRowSeparator != '\0' && rowno >= 1 && grid[rowno - 1][colno].isTh ? table.headingRowSeparator : c;
+                        char c2 = (
+                            table.headingRowSeparator != '\0' && rowno >= 1 && grid[rowno - 1][colno].isTh
+                            ? table.headingRowSeparator
+                            : c
+                        );
                         sb.append(StringUtil.repeat(columnWidths[colno], c2));
                     }
-                    // The "cross" at the intersection of cells' borders.
+
+                    // Print the "cross" at the intersection of cells' borders.
+                    char x = (
+                        rowno == 0                                                  // Top border.
+                        || (
+                            colno != grid[0].length - 1                             // Not right table border.
+                            && grid[rowno - 1][colno] == grid[rowno - 1][colno + 1] // COLSPANned cell above.
+                        )
+                    ) && (
+                        colno != grid[0].length - 1                                 // Not right table border.
+                        && grid[rowno][colno] == grid[rowno][colno + 1]             // COLSPANned cell below.
+                    ) ? c : '+';
                     sb.append(StringUtil.repeat(
                         (colno == grid[0].length - 1 ? table.rightBorder : table.columnSeparator).length(),
-                        (rowno == 0 || (colno != grid[0].length - 1 && grid[rowno - 1][colno] == grid[rowno - 1][colno + 1]))
-                        && (colno != grid[0].length - 1 && grid[rowno][colno] == grid[rowno][colno + 1]) ? c : '+'
+                        x
                     ));
                 }
+
                 output.consume(sb.toString());
             }
 
@@ -232,6 +273,8 @@ class TableFormatter implements BlockElementFormatter {
     /**
      * Fills {@link Cell#lines}, {@link Cell#width} and {@link Cell#height} while obeying the the given
      * <var>columnMeasures</var>.
+     *
+     * @param columnSeparatorWidth Is needed for COLSPANned cells, because the it adds to their measure
      */
     public static void
     formatCells(Html2Txt html2Txt, Cell[][] grid, int[] columnMeasures, int columnSeparatorWidth)
@@ -257,11 +300,11 @@ class TableFormatter implements BlockElementFormatter {
                 List<CharSequence> lines = (cell.lines = new ArrayList<CharSequence>());
                 html2Txt.formatBlocks(
                     0,                                  // leftMarginWidth
-                    Bulleting.NONE,                     // bulleting
-                    Bulleting.NONE,                      // measure
-                    columnMeasure,                    // nodes
-                    cell.childNodes
-, ConsumerUtil.addToCollection(lines) // output
+                    Bulleting.NONE,                     // inlineSubelementsBulleting
+                    Bulleting.NONE,                     // blockSubelementsBulleting
+                    columnMeasure,                      // measure
+                    cell.childNodes,                    // nodes
+                    ConsumerUtil.addToCollection(lines) // output
                 );
                 cell.width  = Html2Txt.maxLength(lines);
                 cell.height = lines.size();
@@ -271,14 +314,40 @@ class TableFormatter implements BlockElementFormatter {
 
     class Cell {
 
-        final boolean        isTh;
+        /**
+         * Whether this cell corresponds with a "{@code <td>}" element ({@code false}), or with a "{@code <th>}"
+         * element ({@code true}).
+         */
+        final boolean isTh;
+
+        /**
+         * The child nodes of the "{@code <td>}" (or "{@code <th>}") element: Text, inline elements, and/or block
+         * elements.
+         */
         final Iterable<Node> childNodes;
 
+        // The following are set only when the cell is "formatted".
+
+        /**
+         * The formatted content of the cell, e.g., "{@code <td>This is <b>bold</b> text.</td>}" could be formatted
+         * as
+         * <pre>
+         *   { "This is", "*bold* text." }
+         * </pre>
+         */
         @Nullable List<CharSequence> lines;
-        int                          width, height;
+
+        /**
+         * The width/height of the formatted content of the cell, e.g., if {@link Cell#lines} were
+         * <pre>
+         *   { "This is", "*bold* text." }
+         * </pre>
+         * , then the width would be 12 and the height 2.
+         */
+        int width, height;
 
         Cell(boolean isTh, Iterable<Node> childNodes) {
-            this.isTh = isTh;
+            this.isTh       = isTh;
             this.childNodes = childNodes;
         }
     }
@@ -307,6 +376,7 @@ class TableFormatter implements BlockElementFormatter {
      */
     private Cell[][]
     arrange(Table table) {
+        // SUPPRESS CHECKSTYLE de.unkrig.cscontrib.checks.Whitespace
         List<List<Cell> /*row*/> cells = new ArrayList<List<Cell>>();
 
         // For each <td>...
@@ -331,7 +401,7 @@ class TableFormatter implements BlockElementFormatter {
 
                 // At this point, "rowno" and "colno" point to the "right" place for the new cell.
                 // Insert colspan x colspan tiles into the grid.
-                Cell cell = new Cell(td.isTh, td.childNodes);
+                final Cell cell = new Cell(td.isTh, td.childNodes);
                 for (int j = 0; j < td.rowspan; j++) {
                     while (cells.size() <= rowno + j) cells.add(new ArrayList<Cell>());
                     List<Cell> row = cells.get(rowno + j);
@@ -366,7 +436,7 @@ class TableFormatter implements BlockElementFormatter {
 
         // Put the "filler" tile into the empty places.
         Cell filler = new Cell(false, Collections.<Node>emptyList());
-        filler.width = filler.height = 0;
+        filler.width = (filler.height = 0);
         filler.lines = Collections.emptyList();
         for (rowno = 0; rowno < result.length; rowno++) {
             Cell[] row = result[rowno];
@@ -380,7 +450,13 @@ class TableFormatter implements BlockElementFormatter {
 
     private static int
     computeTableWidth(int[] columnWidths, int leftBorderWidth, int columnSeparatorWidth, int rightBorderWidth) {
-        return leftBorderWidth + rightBorderWidth + (columnWidths.length - 1) * columnSeparatorWidth + TableFormatter.sum(columnWidths);
+
+        return (
+            leftBorderWidth
+            + rightBorderWidth
+            + (columnWidths.length - 1) * columnSeparatorWidth
+            + TableFormatter.sum(columnWidths)
+        );
     }
 
     private static int
@@ -391,10 +467,28 @@ class TableFormatter implements BlockElementFormatter {
     }
 
     /**
-     * @return Column widths suitable for the given <var>cellWidths</var>
+     * Computes "nice" column widths from the given map. Iff COLSPANned cells require wider columns, then the
+     * relevant columns are widened evenly.
+     *
+     * @param cellWidths <var>colspan</var> => <var>colno</var> => <var>width</var>
+     * @return           Column widths suitable for the given <var>cellWidths</var>
      */
     private static int[]
-    computeColumnWidths(SortedMap<Integer, SortedMap<Integer, Integer>> cellWidths, int ncols) {
+    computeColumnWidths(SortedMap<Integer, SortedMap<Integer, Integer>> cellWidths) {
+
+        // Compute the number of columns ("ncols").
+        int ncols = 0;
+        for (Entry<Integer, SortedMap<Integer, Integer>> e : cellWidths.entrySet()) {
+            int                         colspan     = e.getKey();
+            SortedMap<Integer, Integer> colno2Width = e.getValue();
+
+            for (Integer colno : colno2Width.keySet()) {
+
+                int m = colno + colspan;
+
+                if (m > ncols) ncols = m;
+            }
+        }
 
         int[] result = new int[ncols];
         for (Entry<Integer, SortedMap<Integer, Integer>> e : cellWidths.entrySet()) {
@@ -418,6 +512,20 @@ class TableFormatter implements BlockElementFormatter {
         return result;
     }
 
+    /**
+     * Computes "nice" row heights from the given map. Iff ROWSPANned cells require taller rows, then the relevant rows
+     * are evenly made taller.
+     *
+     * @param cellHeights <var>rowspan</var> => <var>rowno</var> => <var>height</var>
+     * @return            Row heights suitable for the given <var>cellHeights</var>
+     */
+    private static int[]
+    computeRowHeights(SortedMap<Integer, SortedMap<Integer, Integer>> cellHeights) {
+
+        // "computeColumnWidths()" works just as fine for computing row heights, so no need to copy code.
+        return TableFormatter.computeColumnWidths(cellHeights);
+    }
+
     private static void
     spreadEvenly(int excess, int[] values) {
         TableFormatter.spreadEvenly(excess, values, 0, values.length);
@@ -428,9 +536,9 @@ class TableFormatter implements BlockElementFormatter {
 
         if (excess == 0) return;
 
-        int n = excess / len;
+        int n     = excess / len;
         int nfrac = excess - (len * n);
-        int x = 0;
+        int x     = 0;
         for (int i = 0; i < len; i++) {
             int w = values[off + i] + n;
             if ((x += nfrac) > len) {
@@ -449,12 +557,19 @@ class TableFormatter implements BlockElementFormatter {
         /** "" means "no border/separator". */
         final String leftBorder, columnSeparator, rightBorder;
 
+        /**
+         * The "{@code <tr>}" subelements of this table.
+         */
         final List<Tr> trs;
 
         /** Whether to stretch the table to the full measure if it is more narrow. */
         private final boolean is100Percent;
 
-        public Table(
+        /**
+         * Notice that all fields of this class are FINAL; they are set exclusively by THIS constructor.
+         */
+        public
+        Table(
             char     topBorder,
             char     rowSeparator,
             char     headingRowSeparator,
@@ -490,14 +605,25 @@ class TableFormatter implements BlockElementFormatter {
      */
     class Td {
 
+        /**
+         * Whether this cell corresponds with a "{@code <td>}" element ({@code false}), or with a "{@code <th>}"
+         * element ({@code true}).
+         */
         final boolean isTh;
 
         /** 1 or greater. */
         final int rowspan, colspan;
 
+        /**
+         * The child nodes of the "{@code <td>}" (or "{@code <th>}") element: Text, inline elements, and/or block
+         * elements.
+         */
         final Iterable<Node> childNodes;
 
         Td(boolean isTh, int rowspan, int colspan, Iterable<Node> childNodes) {
+            assert rowspan >= 1;
+            assert colspan >= 1;
+
             this.isTh       = isTh;
             this.rowspan    = rowspan;
             this.colspan    = colspan;
@@ -512,22 +638,35 @@ class TableFormatter implements BlockElementFormatter {
         final char   topBorder, rowSeparator, headingRowSeparator, bottomBorder;
         final String leftBorder, columnSeparator, rightBorder;
         {
-            Attr borderAttribute = tableElement.getAttributeNode("border");
-            String border = borderAttribute == null ? null : borderAttribute.getValue();
+            Attr   borderAttribute = tableElement.getAttributeNode("border");
+            String border          = borderAttribute == null ? null : borderAttribute.getValue();
+
             if ("1".equals(border)) {
-                topBorder = rowSeparator = bottomBorder = '-';
+                topBorder           = '-';
+                rowSeparator        = '-';
+                bottomBorder        = '-';
                 headingRowSeparator = '=';
-                leftBorder = columnSeparator = rightBorder = "|";
+                leftBorder          = "|";
+                columnSeparator     = "|";
+                rightBorder         = "|";
             } else
             if ("2".equals(border)) {
-                topBorder = rowSeparator = bottomBorder = '=';
+                topBorder           = '=';
+                rowSeparator        = '=';
+                bottomBorder        = '=';
                 headingRowSeparator = '=';
-                leftBorder = columnSeparator = rightBorder = "||";
+                leftBorder          = "||";
+                columnSeparator     = "||";
+                rightBorder         = "||";
             } else
             {
-                topBorder = rowSeparator = headingRowSeparator = bottomBorder = '\0';
-                leftBorder = rightBorder = "";
-                columnSeparator = " ";
+                topBorder           = '\0';
+                rowSeparator        = '\0';
+                headingRowSeparator = '\0';
+                bottomBorder        = '\0';
+                leftBorder          = "";
+                rightBorder         = "";
+                columnSeparator     = " ";
             }
         }
 
@@ -546,7 +685,7 @@ class TableFormatter implements BlockElementFormatter {
             if (Html2Txt.isElement(trNode, "tr") == null) {
                 html2Txt.htmlErrorHandler.warning(new HtmlException(
                     trNode,
-                    "Expected \"<tr>\" instead of \"" + XmlUtil.toString(trNode) + "\""
+                    "Expected \"<tr>\" instead of \"" + XmlUtil.toString(trNode) + "\" inside \"<table>\""
                 ));
                 continue;
             }
@@ -610,7 +749,7 @@ class TableFormatter implements BlockElementFormatter {
     computeCellWidths(Html2Txt html2Txt, Cell[][] grid) {
 
         SortedMap<Integer /*colspan*/, SortedMap<Integer /*colno*/, Integer /*width*/>>
-        result = new TreeMap<Integer, SortedMap<Integer,Integer>>();
+        result = new TreeMap<Integer, SortedMap<Integer, Integer>>();
 
         for (int rowno = 0; rowno < grid.length; rowno++) {
             Cell[] row = grid[rowno];
@@ -635,12 +774,12 @@ class TableFormatter implements BlockElementFormatter {
     }
 
     /**
-     * @return <var>rowspan</var> => <var>rowno</var> => <var>width</var>
+     * @return <var>rowspan</var> => <var>rowno</var> => <var>height</var>
      */
     private static SortedMap<Integer, SortedMap<Integer, Integer>>
     computeCellHeights(Html2Txt html2Txt, Cell[][] grid) {
 
-        SortedMap<Integer, SortedMap<Integer, Integer>> result = new TreeMap<Integer, SortedMap<Integer,Integer>>();
+        SortedMap<Integer, SortedMap<Integer, Integer>> result = new TreeMap<Integer, SortedMap<Integer, Integer>>();
 
         for (int rowno = 0; rowno < grid.length; rowno++) {
             Cell[] row = grid[rowno];
