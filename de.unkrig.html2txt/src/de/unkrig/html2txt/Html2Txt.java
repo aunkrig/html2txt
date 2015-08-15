@@ -1228,7 +1228,7 @@ class Html2Txt {
             if (!name.isEmpty() && href.isEmpty()) {
                 if (!html2Txt.getBlock(XmlUtil.iterable(element.getChildNodes())).isEmpty()) {
                     html2Txt.htmlErrorHandler.warning(
-                        new HtmlException(element, "'<a name=\"...\" />' tag should have content")
+                        new HtmlException(element, "'<a name=\"...\" />' tag should not have content")
                     );
                 }
 
@@ -1237,7 +1237,7 @@ class Html2Txt {
             } else
             if (!href.isEmpty() && name.isEmpty()) {
                 output.append(html2Txt.getBlock(XmlUtil.iterable(element.getChildNodes())));
-                output.append(" (see ").append(href).append(')');
+                output.append(" (see \"").append(href).append("\")");
             } else
             {
                 html2Txt.htmlErrorHandler.warning(
@@ -1274,6 +1274,16 @@ class Html2Txt {
                 );
             }
             output.append('\n');
+        }
+    };
+
+    private static final InlineElementFormatter
+    IMG_FORMATTER = new InlineElementFormatter() {
+
+        @Override public void
+        format(Html2Txt html2Txt, Element element, StringBuilder output) {
+
+            output.append("[IMG]");
         }
     };
 
@@ -1322,7 +1332,8 @@ class Html2Txt {
 
             output.append('"');
             output.append(html2Txt.getBlock(XmlUtil.iterable(element.getChildNodes())));
-            output.append("\" (").append(cite).append(')');
+            output.append("\"");
+            if (!cite.isEmpty()) output.append(" (").append(cite).append(')');
         }
     };
 
@@ -1416,7 +1427,7 @@ class Html2Txt {
         "dfn",      Html2Txt.IGNORE_INLINE_ELEMENT_FORMATTER,
         "em",       new SimpleInlineElementFormatter("<", ">"),
         "i",        new SimpleInlineElementFormatter("<", ">"),
-        "img",      Html2Txt.NYI_INLINE_ELEMENT_FORMATTER,
+        "img",      Html2Txt.IMG_FORMATTER,
         "input",    Html2Txt.INPUT_FORMATTER,
         "kbd",      new SimpleInlineElementFormatter("[ ", " ]"),
         "label",    Html2Txt.IGNORE_INLINE_ELEMENT_FORMATTER,
