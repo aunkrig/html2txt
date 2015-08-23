@@ -62,9 +62,7 @@
 			linksource="true"
 			failonerror="true"
 		>
-<!-- Only supported by JAVADOC 8.
 			<arg value="-Xdoclint:none" />
--->			
 			<arg value="-quiet" />
 			<fileset dir="../de.unkrig.html2txt/src" />
 			<link
