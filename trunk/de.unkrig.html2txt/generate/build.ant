@@ -9,8 +9,8 @@
 	<target name="usage.txt">
 
 		<echo message="*** Generating HTML documentation..." />
-		<javadoc destdir="src">
-			<doclet name="de.unkrig.doclet.main.MainDoclet" path="generate/de.unkrig.doclet.jar" />
+		<javadoc encoding="UTF-8" destdir="src">
+			<doclet name="de.unkrig.doclet.main.MainDoclet" path="generate/de.unkrig.doclet.main.jar" />
 			<fileset file="src/de/unkrig/html2txt/Main.java" />
 			<classpath>
 				<pathelement location="bin" />
@@ -18,6 +18,7 @@
 				<pathelement location="../de.unkrig.commons.nullanalysis/bin" />
 				<pathelement location="../de.unkrig.commons.text/bin"         />
 			</classpath>
+			<arg line="-output-encoding UTF-8"/>
 		</javadoc>
 		
 		<echo message="*** Converting HTML documentation to TXT..." />
@@ -30,9 +31,9 @@
 				<pathelement location="../de.unkrig.commons.util/bin" />
 				<pathelement location="../de.unkrig.commons.text/bin" />
 			</classpath>
-			<arg value="-page-width" />
-			<arg value="120" />
-			<arg value="${basedir}/src/de/unkrig/html2txt/Main.main.html" />
+			<arg line="-page-width 120" />
+			<arg line="-encoding UTF-8" />
+			<arg value="${basedir}/src/de/unkrig/html2txt/Main.main(String[]).html" />
 			<arg value="${basedir}/src/de/unkrig/html2txt/usage.txt" />
 		</java>
 		
