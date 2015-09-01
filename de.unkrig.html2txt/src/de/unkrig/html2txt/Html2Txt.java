@@ -107,9 +107,12 @@ class Html2Txt {
      */
     HtmlErrorHandler htmlErrorHandler = Html2Txt.SIMPLE_HTML_ERROR_HANDLER;
 
-    private int pageLeftMarginWidth  /*= 0*/;
-    private int pageRightMarginWidth = 1;
-    private int pageWidth;
+    private int     pageLeftMarginWidth  /*= 0*/;
+    private int     pageRightMarginWidth = 1;
+    private Charset inputCharset  = Charset.defaultCharset();
+    private Charset outputCharset = Charset.defaultCharset();
+    private int     pageWidth;
+
     {
         try {
             this.pageWidth = Integer.parseInt(System.getenv("COLUMNS"));
@@ -429,6 +432,16 @@ class Html2Txt {
         return this;
     }
 
+    public void
+    setInputCharset(Charset cs) {
+        this.inputCharset = cs;
+    }
+
+    public void
+    setOutputCharset(Charset cs) {
+        this.outputCharset = cs;
+    }
+
     /**
      * The maximum length of output lines is "<var>pageWidth</var> - <var>rightMarginWidth</var>".
      * <p>
@@ -451,7 +464,7 @@ class Html2Txt {
         DocumentBuilder db = DocumentBuilderFactory.newInstance().newDocumentBuilder();
         db.setErrorHandler(Html2Txt.SIMPLE_SAX_ERROR_HANDLER);
 
-        Document document = XmlUtil.parse(db, inputFile);
+        Document document = XmlUtil.parse(db, inputFile, this.inputCharset.name());
 
         this.html2txt(document, output);
     }
@@ -497,7 +510,7 @@ class Html2Txt {
 
         IoUtil.outputFilePrintWriter(
             outputFile,
-            Charset.forName("ISO8859-1"),
+            this.outputCharset,
             new ConsumerWhichThrows<PrintWriter, Exception>() {
 
                 @Override public void
