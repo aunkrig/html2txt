@@ -28,7 +28,10 @@ package de.unkrig.html2txt;
 
 import java.io.File;
 import java.io.InputStream;
+import java.io.InputStreamReader;
+import java.io.OutputStreamWriter;
 import java.io.PrintWriter;
+import java.nio.charset.Charset;
 
 import javax.xml.transform.SourceLocator;
 import javax.xml.transform.TransformerException;
@@ -73,6 +76,18 @@ class Main {
      *     The maximum line length to produce. Defaults to the value of the "{@code $COLUMNS}" environment variable,
      *     if set, otherwise to "80".
      *   </dd>
+     *   <dt>{@code -encoding} <var>enc</var></dt>
+     *   <dd>
+     *     The charset to use when reading the input file and writing the output file.
+     *   </dd>
+     *   <dt>{@code -input-encoding} <var>enc</var></dt>
+     *   <dd>
+     *     The charset to use when reading the input file.
+     *   </dd>
+     *   <dt>{@code -output-encoding} <var>enc</var></dt>
+     *   <dd>
+     *     The charset to use when writing the output file.
+     *   </dd>
      * </dl>
      */
     public static void
@@ -88,15 +103,26 @@ class Main {
             if ("-help".equals(arg)) {
                 InputStream is = Main.class.getClassLoader().getResourceAsStream("de/unkrig/html2txt/usage.txt");
                 IoUtil.copy(
-                    is,         // inputStream
-                    true,       // closeInputStream
-                    System.out, // outputStream
-                    false       // closeOutputStream
+                    new InputStreamReader(is, Charset.forName("UTF-8")), // inputStream
+                    true,                                                // closeReader
+                    new OutputStreamWriter(System.out),                  // outputStream
+                    false                                                // closeWriter
                 );
                 return;
             } else
             if ("-page-width".equals(arg)) {
                 html2Txt.setPageWidth(Integer.parseInt(args[idx++]));
+            } else
+            if ("-encoding".equals(arg)) {
+                Charset cs = Charset.forName(args[idx++]);
+                html2Txt.setInputCharset(cs);
+                html2Txt.setOutputCharset(cs);
+            } else
+            if ("-input-encoding".equals(arg)) {
+                html2Txt.setInputCharset(Charset.forName(args[idx++]));
+            } else
+            if ("-output-encoding".equals(arg)) {
+                html2Txt.setOutputCharset(Charset.forName(args[idx++]));
             } else
             {
                 System.err.println("Invalid command line option \"" + arg + "\"; try \"-help\".");
