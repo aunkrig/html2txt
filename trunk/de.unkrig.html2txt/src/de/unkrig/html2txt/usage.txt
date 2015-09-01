@@ -14,3 +14,9 @@ Options:
   -page-width <N>
       The maximum line length to produce. Defaults to the value of the "$COLUMNS" environment variable, if set,
       otherwise to "80".
+  -encoding <enc>
+      The charset to use when reading the input file and writing the output file.
+  -input-encoding <enc>
+      The charset to use when reading the input file.
+  -output-encoding <enc>
+      The charset to use when writing the output file.
