@@ -109,8 +109,8 @@ class Html2Txt {
 
     private int     pageLeftMarginWidth  /*= 0*/;
     private int     pageRightMarginWidth = 1;
-    private Charset inputCharset  = Charset.defaultCharset();
-    private Charset outputCharset = Charset.defaultCharset();
+    private Charset inputCharset         = Charset.defaultCharset();
+    private Charset outputCharset        = Charset.defaultCharset();
     private int     pageWidth;
 
     {
@@ -960,7 +960,7 @@ class Html2Txt {
                 }
             }
 
-            Producer<CharSequence> lp = LineUtil.lineProducer(sb);
+            Producer<? extends CharSequence> lp = LineUtil.lineProducer(sb);
             for (boolean first = true;; first = false) {
 
                 CharSequence line = lp.produce();
@@ -1477,7 +1477,7 @@ class Html2Txt {
      * Wraps the given <var>delegate</var> such that it right-pads the products with <var>c</var> to the given
      * <var>width</var>.
      */
-    public static Producer<String>
+    public static Producer<? extends String>
     rightPad(final Producer<? extends CharSequence> delegate, final int width, final char c) {
 
         return new Producer<String>() {
