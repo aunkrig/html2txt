@@ -432,11 +432,19 @@ class Html2Txt {
         return this;
     }
 
+    /**
+     * Sets the charset to use when reading HTML input files. Defaults to the {@link Charset#defaultCharset() JVM
+     * default charset}.
+     */
     public void
     setInputCharset(Charset cs) {
         this.inputCharset = cs;
     }
 
+    /**
+     * Sets the charset to use when writing text input files. Defaults to the {@link Charset#defaultCharset() JVM
+     * default charset}.
+     */
     public void
     setOutputCharset(Charset cs) {
         this.outputCharset = cs;
