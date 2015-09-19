@@ -63,6 +63,7 @@
 			linksource="true"
 			failonerror="true"
 		>
+			<tag name="command-line-options" enabled="false" />
 			<arg value="-Xdoclint:none" />
 			<arg value="-quiet" />
 			<fileset dir="../de.unkrig.html2txt/src" />
