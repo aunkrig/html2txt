@@ -27,6 +27,7 @@
 package de.unkrig.html2txt;
 
 import java.io.File;
+import java.nio.charset.Charset;
 import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
@@ -114,6 +115,20 @@ class AntTask extends Task {
      */
     public void
     setPageWidth(int value) { this.html2txt.setPageWidth(value); }
+
+    /**
+     * The charset to use when reading HTML input files. Defaults to the {@link Charset#defaultCharset() JVM default
+     * charset}.
+     */
+    public void
+    setInputCharset(Charset cs) { this.html2txt.setInputCharset(cs); }
+
+    /**
+     * The charset to use when writing text input files. Defaults to the {@link Charset#defaultCharset() JVM default
+     * charset}.
+     */
+    public void
+    setOutputCharset(Charset cs) { this.html2txt.setOutputCharset(cs); }
 
     /**
      * Resources to convert.
