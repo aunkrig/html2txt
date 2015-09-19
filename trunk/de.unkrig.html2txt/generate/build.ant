@@ -45,7 +45,7 @@
 		<html2txt outputCharset="UTF-8">
 			<fileset dir="src" includes="de/unkrig/html2txt/Main.main(String[]).html" />
 		</html2txt>
-		
+
 		<delete dir="tmp" />
 	</target>
 </project>
