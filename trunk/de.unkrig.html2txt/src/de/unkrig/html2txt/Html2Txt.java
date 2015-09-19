@@ -124,8 +124,6 @@ class Html2Txt {
     /**
      * Representation of an exceptional condition that occurred during HTML processing. This exception is always
      * related to a node in the HTML DOM.
-     *
-     * @see #getNode()
      */
     public static
     class HtmlException extends Exception {
@@ -1132,7 +1130,7 @@ class Html2Txt {
         }
     };
 
-    private static
+    public static
     class IndentingBlockElementFormatter implements BlockElementFormatter {
 
         private final int indentation;
