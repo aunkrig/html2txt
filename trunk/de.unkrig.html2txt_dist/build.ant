@@ -62,7 +62,9 @@
 			linksource="true"
 			failonerror="true"
 		>
+<!--
 			<arg value="-Xdoclint:none" />
+-->
 			<arg value="-quiet" />
 			<fileset dir="../de.unkrig.html2txt/src" />
 			<link
@@ -79,7 +81,7 @@
 				<pathelement location="../de.unkrig.commons.util/bin"         />
 				<pathelement location="../org.apache.ant-1.8.4/lib/ant.jar" />
 			</classpath>
-			<tag name="de.unkrig.doclet.ant.defaultValue" description="Default value:" />
+			<tag name="ant.defaultValue" description="Default value:" />
 		</javadoc>
 	</target>
 
@@ -123,8 +125,7 @@
 		-->
 		<echo message="*** Getting the command line tool documentation..." />
 		<copy todir="mirror">
-			<fileset file="../de.unkrig.html2txt/src/de/unkrig/html2txt/Main.main.html" />
-			<fileset file="../de.unkrig.html2txt/src/de/unkrig/html2txt/usage.txt" />
+			<fileset dir="../de.unkrig.html2txt/src/de/unkrig/html2txt" includes="Main.main(String[]).html,Main.main(String[]).txt" />
 		</copy>
 
 		<!-- Copy CHANGELOG.txt -->
