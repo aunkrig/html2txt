@@ -22,7 +22,7 @@
 		</javadoc>
 		
 		<echo message="*** Converting HTML documentation to TXT..." />
-		<java classname="de.unkrig.html2txt.Main">
+		<taskdef resource="de/unkrig/html2txt/antlib.xml">
 			<classpath>
 				<pathelement location="bin" />
 				<pathelement location="../de.unkrig.commons.file/bin" />
@@ -31,11 +31,10 @@
 				<pathelement location="../de.unkrig.commons.util/bin" />
 				<pathelement location="../de.unkrig.commons.text/bin" />
 			</classpath>
-			<arg line="-page-width 120" />
-			<arg line="-encoding UTF-8" />
-			<arg value="${basedir}/src/de/unkrig/html2txt/Main.main(String[]).html" />
-			<arg value="${basedir}/src/de/unkrig/html2txt/usage.txt" />
-		</java>
+		</taskdef>
+		<html2txt>
+			<fileset dir="src" includes="de/unkrig/html2txt/Main.main(String[]).html" />
+		</html2txt>
 		
 		<delete dir="tmp" />
 	</target>
