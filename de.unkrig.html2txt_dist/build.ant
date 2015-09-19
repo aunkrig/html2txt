@@ -53,6 +53,7 @@
 	<target name="build.javadoc">
 	
 		<echo message="*** Generating the library documentation..." />
+		<eclipse.convertPath resourcepath="/no-template-core" property="de.unkrig.no-template-core" />
 		<javadoc
 			destdir="mirror/javadoc"
 			doctitle="DOCTITLE"
@@ -62,9 +63,7 @@
 			linksource="true"
 			failonerror="true"
 		>
-<!--
 			<arg value="-Xdoclint:none" />
--->
 			<arg value="-quiet" />
 			<fileset dir="../de.unkrig.html2txt/src" />
 			<link
@@ -80,6 +79,7 @@
 				<pathelement location="../de.unkrig.commons.text/bin"         />
 				<pathelement location="../de.unkrig.commons.util/bin"         />
 				<pathelement location="../org.apache.ant-1.8.4/lib/ant.jar" />
+				<pathelement location="${de.unkrig.no-template-core}/bin" />
 			</classpath>
 			<tag name="ant.defaultValue" description="Default value:" />
 		</javadoc>
@@ -91,10 +91,11 @@
 		<javadoc destdir="mirror/antdoc" failonerror="true">
 			<doclet name="de.unkrig.doclet.ant.AntDoclet">
 				<path>
-<!--
 					<fileset dir="../de.unkrig.doclet.ant_dist/mirror/download" includes="*/de.unkrig.doclet.ant.jar" />
--->
+<!--
 					<fileset file="lib/de.unkrig.doclet.ant.jar" />
+-->
+					<fileset file="../org.apache.ant-1.8.4/lib/ant.jar" />
 				</path>
 			</doclet>
 			
