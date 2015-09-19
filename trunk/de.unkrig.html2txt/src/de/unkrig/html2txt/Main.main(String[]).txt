@@ -11,15 +11,15 @@ Usage:
 Options:
 ========
 
-  -help
+  --help
       Print this text and terminate.
-  -page-width <N>
+  --page-width <width>
       The maximum line length to produce. Defaults to the value of the
       "$COLUMNS" environment variable, if set, otherwise to "80".
-  -encoding <enc>
+  --encoding <charset>
       The charset to use when reading the input file and writing the output
       file.
-  -input-encoding <enc>
+  --input-encoding <charset>
       The charset to use when reading the input file.
-  -output-encoding <enc>
+  --output-encoding <charset>
       The charset to use when writing the output file.

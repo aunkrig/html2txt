@@ -10,15 +10,25 @@
 
 		<echo message="*** Generating HTML documentation..." />
 		<javadoc encoding="UTF-8" destdir="src">
-			<doclet name="de.unkrig.doclet.main.MainDoclet" path="generate/de.unkrig.doclet.main.jar" />
+			<doclet name="de.unkrig.doclet.main.MainDoclet">
+				<path>
+					<pathelement location="../de.unkrig.doclet.main/bin" />
+					<pathelement location="../de.unkrig.commons.doclet/bin" />
+					<pathelement location="../de.unkrig.commons.io/bin"     />
+					<pathelement location="../de.unkrig.commons.lang/bin"   />
+					<pathelement location="../de.unkrig.commons.text/bin"   />
+					<pathelement location="../de.unkrig.commons.util/bin"   />
+				</path>
+			</doclet>
 			<fileset file="src/de/unkrig/html2txt/Main.java" />
 			<classpath>
 				<pathelement location="bin" />
 				<pathelement location="../de.unkrig.commons.io/bin"           />
 				<pathelement location="../de.unkrig.commons.nullanalysis/bin" />
 				<pathelement location="../de.unkrig.commons.text/bin"         />
+				<pathelement location="../de.unkrig.commons.util/bin"         />
 			</classpath>
-			<arg line="-output-encoding UTF-8"/>
+			<arg line="-charset UTF-8"/>
 		</javadoc>
 		
 		<echo message="*** Converting HTML documentation to TXT..." />
@@ -32,7 +42,7 @@
 				<pathelement location="../de.unkrig.commons.text/bin" />
 			</classpath>
 		</taskdef>
-		<html2txt>
+		<html2txt outputCharset="UTF-8">
 			<fileset dir="src" includes="de/unkrig/html2txt/Main.main(String[]).html" />
 		</html2txt>
 		

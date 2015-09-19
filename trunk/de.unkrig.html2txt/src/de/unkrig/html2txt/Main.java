@@ -27,9 +27,7 @@
 package de.unkrig.html2txt;
 
 import java.io.File;
-import java.io.InputStream;
-import java.io.InputStreamReader;
-import java.io.OutputStreamWriter;
+import java.io.IOException;
 import java.io.PrintWriter;
 import java.nio.charset.Charset;
 
@@ -38,7 +36,8 @@ import javax.xml.transform.TransformerException;
 
 import org.xml.sax.SAXParseException;
 
-import de.unkrig.commons.io.IoUtil;
+import de.unkrig.commons.util.CommandLineOptions;
+import de.unkrig.commons.util.annotation.CommandLineOption;
 import de.unkrig.html2txt.Html2Txt.HtmlException;
 
 /**
@@ -46,8 +45,6 @@ import de.unkrig.html2txt.Html2Txt.HtmlException;
  */
 public final
 class Main {
-
-    private Main() {}
 
     /**
      * <h2>Usage:</h2>
@@ -67,90 +64,30 @@ class Main {
      * <h2>Options:</h2>
      *
      * <dl>
-     *   <dt>{@code -help}</dt>
-     *   <dd>
-     *     Print this text and terminate.
-     *   </dd>
-     *   <dt>{@code -page-width} <var>N</var></dt>
-     *   <dd>
-     *     The maximum line length to produce. Defaults to the value of the "{@code $COLUMNS}" environment variable,
-     *     if set, otherwise to "80".
-     *   </dd>
-     *   <dt>{@code -encoding} <var>enc</var></dt>
-     *   <dd>
-     *     The charset to use when reading the input file and writing the output file.
-     *   </dd>
-     *   <dt>{@code -input-encoding} <var>enc</var></dt>
-     *   <dd>
-     *     The charset to use when reading the input file.
-     *   </dd>
-     *   <dt>{@code -output-encoding} <var>enc</var></dt>
-     *   <dd>
-     *     The charset to use when writing the output file.
-     *   </dd>
+     * {@command-line-options}
      * </dl>
      */
     public static void
     main(String[] args) throws Exception {
 
-        Html2Txt html2Txt = new Html2Txt();
+        Main main = new Main();
 
-        int idx = 0;
-        while (idx < args.length) {
-            String arg = args[idx];
-            if (!arg.startsWith("-")) break;
-            idx++;
-            if ("-help".equals(arg)) {
-                InputStream is = Main.class.getClassLoader().getResourceAsStream("de/unkrig/html2txt/usage.txt");
-                IoUtil.copy(
-                    new InputStreamReader(is, Charset.forName("UTF-8")), // inputStream
-                    true,                                                // closeReader
-                    new OutputStreamWriter(System.out),                  // outputStream
-                    false                                                // closeWriter
-                );
-                return;
-            } else
-            if ("-page-width".equals(arg)) {
-                html2Txt.setPageWidth(Integer.parseInt(args[idx++]));
-            } else
-            if ("-encoding".equals(arg)) {
-                Charset cs = Charset.forName(args[idx++]);
-                html2Txt.setInputCharset(cs);
-                html2Txt.setOutputCharset(cs);
-            } else
-            if ("-input-encoding".equals(arg)) {
-                html2Txt.setInputCharset(Charset.forName(args[idx++]));
-            } else
-            if ("-output-encoding".equals(arg)) {
-                html2Txt.setOutputCharset(Charset.forName(args[idx++]));
-            } else
-            {
-                System.err.println("Invalid command line option \"" + arg + "\"; try \"-help\".");
-                System.exit(1);
-                return;
-            }
-        }
+        args = CommandLineOptions.parse(args, main);
+
 
         try {
-            switch (args.length - idx)  {
+            switch (args.length)  {
 
             case 1:
-                {
-                    File inputFile = new File(args[idx++]);
-                    html2Txt.html2txt(inputFile, new PrintWriter(System.out));
-                }
+                main.html2Txt.html2txt(new File(args[0]), new PrintWriter(System.out));
                 break;
 
             case 2:
-                {
-                    File inputFile  = new File(args[idx++]);
-                    File outputFile = new File(args[idx++]);
-                    html2Txt.html2txt(inputFile, outputFile);
-                }
+                main.html2Txt.html2txt(new File(args[0]), new File(args[1]));
                 break;
 
             default:
-                System.err.println("Invalid number of command line arguments; try \"-help\".");
+                System.err.println("Invalid number of command line arguments; try \"--help\".");
                 System.exit(1);
             }
         } catch (SAXParseException spe) {
@@ -189,5 +126,51 @@ class Main {
             System.err.println(he);
             System.exit(1);
         }
+    }
+
+    Html2Txt html2Txt = new Html2Txt();
+
+    private
+    Main() {}
+
+    /**
+     * Print this text and terminate.
+     */
+    @CommandLineOption public static void
+    help() throws IOException {
+        CommandLineOptions.printResource(Main.class, "main(String[])", Charset.forName("UTF-8"), System.out);
+        System.exit(0);
+    }
+
+    /**
+     * The maximum line length to produce. Defaults to the value of the "{@code $COLUMNS}" environment variable, if
+     * set, otherwise to "80".
+     */
+    @CommandLineOption public void
+    setPageWidth(int width) { this.html2Txt.setPageWidth(width); }
+
+    /**
+     * The charset to use when reading the input file and writing the output file.
+     */
+    @CommandLineOption public void
+    setEncoding(Charset charset) {
+        this.html2Txt.setInputCharset(charset);
+        this.html2Txt.setOutputCharset(charset);
+    }
+
+    /**
+     * The charset to use when reading the input file.
+     */
+    @CommandLineOption public void
+    setInputEncoding(Charset charset) {
+        this.html2Txt.setInputCharset(charset);
+    }
+
+    /**
+     * The charset to use when writing the output file.
+     */
+    @CommandLineOption public void
+    setOutputEncoding(Charset charset) {
+        this.html2Txt.setOutputCharset(charset);
     }
 }
