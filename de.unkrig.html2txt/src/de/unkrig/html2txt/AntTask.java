@@ -121,14 +121,14 @@ class AntTask extends Task {
      * charset}.
      */
     public void
-    setInputCharset(Charset cs) { this.html2txt.setInputCharset(cs); }
+    setInputCharset(String charsetName) { this.html2txt.setInputCharset(Charset.forName(charsetName)); }
 
     /**
      * The charset to use when writing text input files. Defaults to the {@link Charset#defaultCharset() JVM default
      * charset}.
      */
     public void
-    setOutputCharset(Charset cs) { this.html2txt.setOutputCharset(cs); }
+    setOutputCharset(String charsetName) { this.html2txt.setOutputCharset(Charset.forName(charsetName)); }
 
     /**
      * Resources to convert.
