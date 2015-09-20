@@ -128,7 +128,7 @@ class Main {
         }
     }
 
-    Html2Txt html2Txt = new Html2Txt();
+    private final Html2Txt html2Txt = new Html2Txt();
 
     private
     Main() {}
