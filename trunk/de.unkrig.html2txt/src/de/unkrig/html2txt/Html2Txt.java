@@ -1130,6 +1130,9 @@ class Html2Txt {
         }
     };
 
+    /**
+     * Formats a block <var>N</var> characters indented, relative to the enclosing block.
+     */
     public static
     class IndentingBlockElementFormatter implements BlockElementFormatter {
 
