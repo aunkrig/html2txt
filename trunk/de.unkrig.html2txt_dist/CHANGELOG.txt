@@ -1,3 +1,6 @@
 
+Changes in version ?, ?:
+  * Don't print ' (see "/index.html")' for relative hrefs.
+
 Changes in version 0.1.0, 2015-04-28:
   * Initial release - working, but still very limited.

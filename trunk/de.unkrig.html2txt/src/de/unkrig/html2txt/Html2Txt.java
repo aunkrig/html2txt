@@ -35,6 +35,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.regex.Pattern;
 
 import javax.xml.parsers.DocumentBuilder;
 import javax.xml.parsers.DocumentBuilderFactory;
@@ -101,6 +102,11 @@ class Html2Txt {
         @Override public void fatalError(HtmlException e) throws HtmlException { throw e; }
         @Override public void error(HtmlException e)      throws HtmlException { throw e; }
     };
+
+    /**
+     * Matches hrefs for which it makes sense to print 'Google (see "http://www.google.de")' instead of just 'Google'.
+     */
+    private static final Pattern RELEVANT_HREF_PATTERN = Pattern.compile("\\w+:.*");
 
     /**
      * The handler for any HTML-related warnings, errors and fatal errors that may occur during conversion.
@@ -1273,7 +1279,9 @@ class Html2Txt {
             } else
             if (!href.isEmpty() && name.isEmpty()) {
                 output.append(html2Txt.getBlock(XmlUtil.iterable(element.getChildNodes())));
-                output.append(" (see \"").append(href).append("\")");
+                if (Html2Txt.RELEVANT_HREF_PATTERN.matcher(href).matches()) {
+                    output.append(" (see \"").append(href).append("\")");
+                }
             } else
             {
                 html2Txt.htmlErrorHandler.warning(
