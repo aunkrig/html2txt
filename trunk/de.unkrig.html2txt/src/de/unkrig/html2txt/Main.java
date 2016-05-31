@@ -64,7 +64,7 @@ class Main {
      * <h2>Options:</h2>
      *
      * <dl>
-     * {@command-line-options}
+     * {@main.commandLineOptions}
      * </dl>
      */
     public static void
