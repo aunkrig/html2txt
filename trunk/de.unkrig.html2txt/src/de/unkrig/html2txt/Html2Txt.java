@@ -715,6 +715,8 @@ class Html2Txt {
                     if (
                         text.charAt(idx2 - 1) == '-'
                         && text.charAt(idx2) != '-' // Don't split a double dash.
+                        && idx2 >= 2
+                        && text.charAt(idx2 - 2) != '-'
                     ) {
                         idx1 = idx2;
                         break IDXS;
