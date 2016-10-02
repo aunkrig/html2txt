@@ -703,7 +703,7 @@ class Html2Txt {
             if (text.length() <= measure) break;
 
             // Determine the point to wrap at.
-            int idx1; // Space after the last word to keep in THIS line.
+            int idx1; // Character after the last word to keep in THIS line.
             int idx2; // First letter of the first word to put on the NEXT line.
             IDXS:
             if (text.charAt(measure) == ' ') {
@@ -712,7 +712,10 @@ class Html2Txt {
             } else
             {
                 for (idx2 = measure; idx2 > 0 && text.charAt(idx2 - 1) != ' '; idx2--) {
-                    if (text.charAt(idx2 - 1) == '-') {
+                    if (
+                        text.charAt(idx2 - 1) == '-'
+                        && text.charAt(idx2) != '-' // Don't split a double dash.
+                    ) {
                         idx1 = idx2;
                         break IDXS;
                     }
