@@ -62,7 +62,7 @@ import de.unkrig.commons.lang.protocol.ConsumerWhichThrows;
 import de.unkrig.commons.lang.protocol.Producer;
 import de.unkrig.commons.nullanalysis.Nullable;
 import de.unkrig.commons.text.xml.XmlUtil;
-import de.unkrig.commons.util.collections.CollectionUtil;
+import de.unkrig.commons.util.collections.MapUtil;
 
 /**
  * A converter that turns an HTML document into plain text, using spaces and various punctuation characters to format
@@ -1199,7 +1199,7 @@ class Html2Txt {
      * </p>
      */
     protected static final Map<String, BlockElementFormatter>
-    ALL_BLOCK_ELEMENTS = Collections.unmodifiableMap(CollectionUtil.<String, BlockElementFormatter>map(
+    ALL_BLOCK_ELEMENTS = Collections.unmodifiableMap(MapUtil.<String, BlockElementFormatter>map(
         "address",    new IndentingBlockElementFormatter(2),
         "article",    Html2Txt.IGNORE_BLOCK_ELEMENT_FORMATTER,
         "aside",      Html2Txt.IGNORE_BLOCK_ELEMENT_FORMATTER,
@@ -1460,7 +1460,7 @@ class Html2Txt {
      * </p>
      */
     protected static final Map<String, InlineElementFormatter>
-    ALL_INLINE_ELEMENTS = CollectionUtil.<String, InlineElementFormatter>map(
+    ALL_INLINE_ELEMENTS = MapUtil.<String, InlineElementFormatter>map(
         "a",        Html2Txt.A_FORMATTER,
         "abbr",     Html2Txt.ABBR_FORMATTER,
         "acronym",  Html2Txt.ABBR_FORMATTER,

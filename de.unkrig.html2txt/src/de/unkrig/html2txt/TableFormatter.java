@@ -238,7 +238,7 @@ class TableFormatter implements BlockElementFormatter {
                         List<CharSequence> lines = cell.lines;
                         assert lines != null;
                         p = ProducerUtil.concat(
-                            Html2Txt.rightPad(ProducerUtil.fromCollection(lines), w, ' '),
+                            Html2Txt.rightPad(ProducerUtil.fromIterator(lines.iterator(), true), w, ' '),
                             ProducerUtil.constantProducer(StringUtil.repeat(w, ' '))
                         );
                     }
