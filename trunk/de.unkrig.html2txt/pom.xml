@@ -18,11 +18,6 @@
 
   <dependencies>
     <dependency>
-      <groupId>de.unkrig</groupId>
-      <artifactId>de-unkrig-commons</artifactId>
-      <version>1.1.12</version>
-    </dependency>
-    <dependency>
       <groupId>junit</groupId>
       <artifactId>junit</artifactId>
       <version>4.11</version>
@@ -32,6 +27,17 @@
       <groupId>org.apache.ant</groupId>
       <artifactId>ant</artifactId>
       <version>1.8.4</version>
+      <scope>provided</scope>
+    </dependency>
+    <dependency>
+    	<groupId>de.unkrig.commons</groupId>
+    	<artifactId>commons-lang</artifactId>
+    	<version>1.2.0</version>
+    </dependency>
+    <dependency>
+    	<groupId>de.unkrig.commons</groupId>
+    	<artifactId>commons-util</artifactId>
+    	<version>1.2.0</version>
     </dependency>
   </dependencies>
 
@@ -39,6 +45,7 @@
     <plugins>
       <plugin>
         <artifactId>maven-assembly-plugin</artifactId>
+        <version>2.6</version>
         <configuration>
           <descriptorRefs>
             <descriptorRef>jar-with-dependencies</descriptorRef>
@@ -110,6 +117,7 @@
         </executions>
 
         <configuration>
+          <javadocExecutable>c:/Program Files/Java/jdk1.8.0_45/bin/javadoc.exe</javadocExecutable>
           <author>false</author>
           <use>false</use>
           <version>false</version>
