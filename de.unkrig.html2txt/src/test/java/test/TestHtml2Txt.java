@@ -24,7 +24,7 @@
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-package de.unkrig.html2txt;
+package test;
 
 import java.io.StringReader;
 import java.io.StringWriter;
@@ -36,6 +36,7 @@ import org.junit.Assert;
 import org.junit.Test;
 import org.xml.sax.SAXException;
 
+import de.unkrig.html2txt.Html2Txt;
 import de.unkrig.html2txt.Html2Txt.HtmlException;
 
 // CHECKSTYLE JavadocMethod:OFF
