@@ -568,7 +568,6 @@ class TableFormatter implements BlockElementFormatter {
         /**
          * Notice that all fields of this class are FINAL; they are set exclusively by THIS constructor.
          */
-        public
         Table(
             char     topBorder,
             char     rowSeparator,

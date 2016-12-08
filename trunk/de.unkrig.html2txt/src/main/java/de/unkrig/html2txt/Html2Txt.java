@@ -1052,13 +1052,11 @@ class Html2Txt {
         @Nullable private String prefix, suffix;
         private int              underline = -1;
 
-        public
         HeadingBlockElementFormatter(String prefix, String suffix) {
             this.prefix = prefix;
             this.suffix = suffix;
         }
 
-        public
         HeadingBlockElementFormatter(boolean emptyLineAbove, char underline, boolean emptyLineBelow) {
             this.emptyLineAbove = emptyLineAbove;
             this.underline      = underline;
@@ -1200,6 +1198,8 @@ class Html2Txt {
      */
     protected static final Map<String, BlockElementFormatter>
     ALL_BLOCK_ELEMENTS = Collections.unmodifiableMap(MapUtil.<String, BlockElementFormatter>map(
+
+        // SUPPRESS CHECKSTYLE Wrap:37
         "address",    new IndentingBlockElementFormatter(2),
         "article",    Html2Txt.IGNORE_BLOCK_ELEMENT_FORMATTER,
         "aside",      Html2Txt.IGNORE_BLOCK_ELEMENT_FORMATTER,
@@ -1401,7 +1401,6 @@ class Html2Txt {
         /**
          * Formats enclosed text by prepending the <var>prefix</var> and appending the <var>suffix</var> to it.
          */
-        public
         SimpleInlineElementFormatter(String prefix, String suffix) {
             this.prefix = prefix;
             this.suffix = suffix;
@@ -1461,6 +1460,8 @@ class Html2Txt {
      */
     protected static final Map<String, InlineElementFormatter>
     ALL_INLINE_ELEMENTS = MapUtil.<String, InlineElementFormatter>map(
+
+        // SUPPRESS CHECKSTYLE Wrap:32
         "a",        Html2Txt.A_FORMATTER,
         "abbr",     Html2Txt.ABBR_FORMATTER,
         "acronym",  Html2Txt.ABBR_FORMATTER,
