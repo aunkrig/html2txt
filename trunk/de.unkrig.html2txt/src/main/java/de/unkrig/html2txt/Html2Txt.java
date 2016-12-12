@@ -27,6 +27,7 @@
 package de.unkrig.html2txt;
 
 import java.io.File;
+import java.io.IOException;
 import java.io.PrintWriter;
 import java.io.Reader;
 import java.io.Writer;
@@ -471,7 +472,7 @@ class Html2Txt {
      */
     public void
     html2txt(File inputFile, Writer output)
-    throws ParserConfigurationException, SAXException, TransformerException, HtmlException {
+    throws ParserConfigurationException, SAXException, TransformerException, HtmlException, IOException {
 
         DocumentBuilder db = DocumentBuilderFactory.newInstance().newDocumentBuilder();
         db.setErrorHandler(Html2Txt.SIMPLE_SAX_ERROR_HANDLER);
@@ -487,7 +488,7 @@ class Html2Txt {
      */
     public void
     html2txt(Reader input, Writer output)
-    throws ParserConfigurationException, SAXException, TransformerException, HtmlException {
+    throws ParserConfigurationException, SAXException, TransformerException, HtmlException, IOException {
 
         DocumentBuilder db = DocumentBuilderFactory.newInstance().newDocumentBuilder();
         db.setErrorHandler(Html2Txt.SIMPLE_SAX_ERROR_HANDLER);

@@ -26,6 +26,7 @@
 
 package test;
 
+import java.io.IOException;
 import java.io.StringReader;
 import java.io.StringWriter;
 
@@ -496,13 +497,13 @@ class TestHtml2Txt {
 
     private static void
     assertHtml2Txt(String expected, String html)
-    throws ParserConfigurationException, SAXException, TransformerException, HtmlException {
+    throws ParserConfigurationException, SAXException, TransformerException, HtmlException, IOException {
         TestHtml2Txt.assertHtml2Txt(expected, html, new Html2Txt());
     }
 
     private static void
     assertHtml2Txt(String expected, String html, Html2Txt html2Txt)
-    throws ParserConfigurationException, SAXException, TransformerException, HtmlException {
+    throws ParserConfigurationException, SAXException, TransformerException, HtmlException, IOException {
         StringWriter sw = new StringWriter();
         html2Txt.html2txt(new StringReader(html), sw);
         Assert.assertEquals(expected, sw.toString());
