@@ -138,7 +138,7 @@ class Main {
      */
     @CommandLineOption public static void
     help() throws IOException {
-        CommandLineOptions.printResource(Main.class, "main(String[])", Charset.forName("UTF-8"), System.out);
+        CommandLineOptions.printResource(Main.class, "main(String[]).txt", Charset.forName("UTF-8"), System.out);
         System.exit(0);
     }
 
