@@ -41,6 +41,13 @@
 		</dependency>
 	</dependencies>
 
+	<distributionManagement>
+		<snapshotRepository>
+			<id>ossrh</id>
+			<url>https://oss.sonatype.org/content/repositories/snapshots</url>
+		</snapshotRepository>
+	</distributionManagement>
+
 	<build>
 		<pluginManagement>
 			<plugins>
@@ -62,6 +69,8 @@
 		</pluginManagement>
 
 		<plugins>
+
+			<!-- Create "jar-with-dependencies". -->
 			<plugin>
 				<artifactId>maven-assembly-plugin</artifactId>
 				<version>2.6</version>
@@ -77,10 +86,14 @@
 						<goals>
 							<goal>single</goal>
 						</goals>
+						<configuration>
+							<archive><manifest><mainClass>de.unkrig.html2txt.Main</mainClass></manifest></archive>
+						</configuration>
 					</execution>
 				</executions>
 			</plugin>
 
+			<!-- Create "source-jar". -->
 			<plugin>
 				<groupId>org.apache.maven.plugins</groupId>
 				<artifactId>maven-source-plugin</artifactId>
@@ -112,22 +125,93 @@
 				<artifactId>maven-javadoc-plugin</artifactId>
 				<version>2.10.4</version>
 				<executions>
+
+					<!-- Generate API docs. -->
 					<execution>
 						<id>attach-javadocs</id>
 						<goals>
 							<goal>jar</goal>
 						</goals>
+
+						<configuration>
+							<additionalparam>-Xdoclint:none</additionalparam>
+							<quiet>true</quiet>
+							<encoding>UTF-8</encoding>
+							<author>false</author>
+							<use>false</use>
+							<version>false</version>
+							<tags>
+								<tag><name>ant.defaultValue</name>       <placement>a</placement><head>Default value:</head></tag>
+								<tag><name>main.commandLineOptions</name><placement>X</placement></tag>
+							</tags>
+						</configuration>
+					</execution>
+
+					<!-- Generate HTML MAINDOC. -->
+					<execution>
+						<id>make-maindoc</id>
+						<phase>compile</phase>
+						<goals>
+							<goal>javadoc</goal>
+						</goals>
+
+						<configuration>
+							<useStandardDocletOptions>false</useStandardDocletOptions>
+
+							<quiet>true</quiet>
+							<encoding>UTF-8</encoding>
+
+							<doclet>de.unkrig.doclet.main.MainDoclet</doclet>
+							<docletArtifact>
+								<groupId>de.unkrig</groupId>
+								<artifactId>doclet-main</artifactId>
+								<version>1.0.2</version>
+							</docletArtifact>
+
+							<additionalparam>
+								-charset     UTF-8
+								-docencoding UTF-8
+								-method      main(String[])
+							</additionalparam>
+
+							<destDir>../../classes</destDir>
+						</configuration>
+					</execution>
+				</executions>
+			</plugin>
+
+			<plugin>
+				<groupId>org.codehaus.mojo</groupId>
+				<artifactId>exec-maven-plugin</artifactId>
+				<version>1.5.0</version>
+				<executions>
+
+					<!-- Convert HTML MAINDOC to TXT. -->
+					<execution>
+						<id>html2txt-maindoc</id>
+						<phase>compile</phase>
+						<goals>
+							<goal>java</goal>
+						</goals>
+						<configuration>
+							<includePluginDependencies>true</includePluginDependencies>
+							<mainClass>de.unkrig.html2txt.Main</mainClass>
+							<arguments>
+								<argument>target/classes/de/unkrig/html2txt/Main.main(String[]).html</argument>
+								<argument>target/classes/de/unkrig/html2txt/Main.main(String[]).txt</argument>
+							</arguments>
+						</configuration>
 					</execution>
 				</executions>
 
-				<configuration>
-					<author>false</author>
-					<use>false</use>
-					<version>false</version>
-					<additionalparam>-Xdoclint:none</additionalparam>
-					<encoding>UTF-8</encoding>
-					<quiet>true</quiet>
-				</configuration>
+				<dependencies>
+					<dependency>
+						<groupId>de.unkrig</groupId>
+						<artifactId>html2txt</artifactId>
+						<version>1.0.0</version>
+						<scope>runtime</scope>
+					</dependency>
+				</dependencies>
 			</plugin>
 		</plugins>
 	</build>
