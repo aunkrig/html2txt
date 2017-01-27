@@ -166,10 +166,7 @@ class AntTask extends Task {
         for (ResourceCollection resourceCollection : resourceCollections) {
 
             // Process each resource of each collection.
-            for (
-                @SuppressWarnings("unchecked") Iterator<Resource> it = resourceCollection.iterator();
-                it.hasNext();
-            ) resources.add(it.next());
+            for (Iterator<Resource> it = resourceCollection.iterator(); it.hasNext();) resources.add(it.next());
         }
 
         if (resources.isEmpty()) return;
