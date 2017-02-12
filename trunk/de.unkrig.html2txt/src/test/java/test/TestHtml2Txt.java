@@ -152,7 +152,7 @@ class TestHtml2Txt {
             ""
             + "<html>\n"
             + "  <body>\n"
-            + "  zero\n"
+            + "    zero\n"
             + "    <ul>\n"
             + "      <li>one</li>\n"
             + "      one-and-a-half\n"
