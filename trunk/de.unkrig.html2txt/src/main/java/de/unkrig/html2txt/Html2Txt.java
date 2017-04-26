@@ -87,7 +87,7 @@ class Html2Txt {
 
     static { AssertionUtil.enableAssertionsForThisClass(); }
 
-    /** All methods of this {@link ErrorHandler} throw the {@link SAXException} they recieve. */
+    /** All methods of this {@link ErrorHandler} throw the {@link SAXException} they receive. */
     @SuppressWarnings("null")
     public static final ErrorHandler
     SIMPLE_SAX_ERROR_HANDLER = new ErrorHandler() {
@@ -96,7 +96,7 @@ class Html2Txt {
         @Override public void error(@Nullable SAXParseException e)      throws SAXParseException { throw e; }
     };
 
-    /** All methods of theis {@link HtmlErrorHandler} throw the {@link HtmlException} they recieve. */
+    /** All methods of this {@link HtmlErrorHandler} throw the {@link HtmlException} they receive. */
     public static final HtmlErrorHandler
     SIMPLE_HTML_ERROR_HANDLER = new HtmlErrorHandler() {
         @Override public void warning(HtmlException e)    throws HtmlException { throw e; }
@@ -228,6 +228,9 @@ class Html2Txt {
         Bulleting NONE = new Bulleting() {  @Override public String next() { return ""; } };
     }
 
+    /**
+     * Various "numbering" schemes; used for HTML "ordered lists" ({@code <ol>...</ol>}).
+     */
     enum NumberingType {
 
         /**
@@ -379,7 +382,7 @@ class Html2Txt {
          * Etc.
          */
         UPPERCASE_ROMAN_LITERALS {
-            @Override public long   parse(String s)      { return NumberingType.LOWERCASE_ROMAN_NUMERALS.parse(s); }
+            @Override public long   parse(String s)      { return LOWERCASE_ROMAN_NUMERALS.parse(s); }
             @Override public String toString(long value) { return LOWERCASE_ROMAN_NUMERALS.toString().toUpperCase(); }
         },
 
@@ -415,7 +418,7 @@ class Html2Txt {
     }
 
     /**
-     * The number of spaces that preceeds each line of output; defaults to zero.
+     * The number of spaces that precedes each line of output; defaults to zero.
      */
     public Html2Txt
     setPageLeftMarginWidth(int pageLeftMarginWidth) {
@@ -576,7 +579,7 @@ class Html2Txt {
             return;
         }
 
-        // Otherwise, assume that the document poses an HTML *fragment*, and the top level nodes ar *blocks*.
+        // Otherwise, assume that the document poses an HTML *fragment*, and the top level nodes are *blocks*.
         this.formatBlocks(
             this.pageLeftMarginWidth,
             Bulleting.NONE,
