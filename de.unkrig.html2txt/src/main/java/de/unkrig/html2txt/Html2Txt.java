@@ -61,6 +61,8 @@ import de.unkrig.commons.lang.protocol.Consumer;
 import de.unkrig.commons.lang.protocol.ConsumerUtil;
 import de.unkrig.commons.lang.protocol.ConsumerWhichThrows;
 import de.unkrig.commons.lang.protocol.Producer;
+import de.unkrig.commons.lang.protocol.Transformer;
+import de.unkrig.commons.lang.protocol.TransformerWhichThrows;
 import de.unkrig.commons.nullanalysis.Nullable;
 import de.unkrig.commons.text.xml.XmlUtil;
 import de.unkrig.commons.util.collections.MapUtil;
@@ -178,6 +180,14 @@ class Html2Txt {
     }
 
     /**
+     * The strategy for vertical alignment of characters when a block is formatted.
+     *
+     * @see BlockElementFormatter
+     */
+    public
+    enum Alignment { LEFT, RIGHT, CENTER, JUSTIFY } // SUPPRESS CHECKSTYLE Javadoc
+
+    /**
      * Formats an HTML block element.
      *
      * @see Html2Txt#ALL_BLOCK_ELEMENTS
@@ -196,6 +206,7 @@ class Html2Txt {
             int                            leftMarginWidth,
             Bulleting                      bulleting,
             int                            measure,
+            Alignment                      alignment,
             Element                        element,
             Consumer<? super CharSequence> output
         ) throws HtmlException;
@@ -570,6 +581,7 @@ class Html2Txt {
                         Bulleting.NONE,
                         Bulleting.NONE,
                         this.pageWidth - this.pageLeftMarginWidth - this.pageRightMarginWidth,
+                        Alignment.LEFT,
                         XmlUtil.iterable(bodyElement.getChildNodes()),
                         output
                     );
@@ -585,6 +597,7 @@ class Html2Txt {
             Bulleting.NONE,
             Bulleting.NONE,
             this.pageWidth - this.pageLeftMarginWidth - this.pageRightMarginWidth,
+            Alignment.LEFT,
             Collections.singletonList(documentElement),
             output
         );
@@ -600,6 +613,7 @@ class Html2Txt {
         Bulleting                      inlineSubelementsBulleting,
         Bulleting                      blockSubelementsBulleting,
         int                            measure,
+        Alignment                      alignment,
         Iterable<N>                    nodes,
         Consumer<? super CharSequence> output
     ) throws HtmlException {
@@ -618,6 +632,7 @@ class Html2Txt {
                         leftMarginWidth,
                         inlineSubelementsBulleting,
                         measure,
+                        alignment,
                         this.getBlock(inlineNodes),
                         output
                     );
@@ -632,7 +647,7 @@ class Html2Txt {
                         new HtmlException(n, "Unexpected block element \"" + XmlUtil.toString(e) + "\" in block")
                     );
                 } else {
-                    bef.format(this, leftMarginWidth, blockSubelementsBulleting, measure, e, output);
+                    bef.format(this, leftMarginWidth, blockSubelementsBulleting, measure, alignment, e, output);
                 }
             } else
             {
@@ -647,11 +662,206 @@ class Html2Txt {
                 leftMarginWidth,
                 inlineSubelementsBulleting,
                 measure,
+                alignment,
                 this.getBlock(inlineNodes),
                 output
             );
             inlineNodes.clear();
         }
+    }
+
+    /**
+     * The given <var>text</var> is word-wrapped such that each output line begins with <var>leftMarginWidth</var>
+     * spaces, followed by up to <var>measure</var> characters. If the <var>text</var> contains very long words, then
+     * some of the output lines may be longer than "<var>leftMarginWidth</var> + <var>measure</var>".
+     * <p>
+     *   Newline characters ({@code '\n'}) appear as line breaks in the output.
+     * </p>
+     *
+     * @param bulleting The string produced by {@link Bulleting#next()} is placed in the left margin of the first
+     *                  line generated
+     * @param output    Receives the output
+     */
+    private void
+    wordWrap(
+        int                            leftMarginWidth,
+        Bulleting                      bulleting,
+        int                            measure,
+        Alignment                      alignment,
+        String                         text,
+        Consumer<? super CharSequence> output
+    ) throws HtmlException {
+
+        switch (alignment) {
+
+        case LEFT:
+            this.wordWrapLeftAligned(leftMarginWidth, bulleting, measure, text, output);
+            return;
+
+        case RIGHT:
+            // Call "wordWrapLeftAligned()" and "post-process" its output to right-align it.
+            this.wordWrapLeftAligned(
+                leftMarginWidth,
+                bulleting,
+                measure,
+                text,
+                Html2Txt.consumer(Html2Txt.alignRight(leftMarginWidth, measure), output)
+            );
+            break;
+
+        case CENTER:
+            // Call "wordWrapLeftAligned()" and "post-process" its output to center it.
+            this.wordWrapLeftAligned(
+                leftMarginWidth,
+                bulleting,
+                measure,
+                text,
+                Html2Txt.consumer(Html2Txt.center(leftMarginWidth, measure), output)
+            );
+            break;
+
+        case JUSTIFY:
+            // Do left-aligned word wrapping into a temporary list.
+            List<CharSequence> tmp = new ArrayList<CharSequence>();
+            this.wordWrapLeftAligned(
+                leftMarginWidth,
+                bulleting,
+                measure,
+                text,
+                ConsumerUtil.addToCollection(tmp)
+            );
+            // Now justify all lines but the last (the last line remains left-justified).
+            ConsumerUtil.tail(
+                tmp,                                                                   // subject
+                1,                                                                     // n
+                Html2Txt.consumer(Html2Txt.justify(leftMarginWidth, measure), output), // delegate1
+                output                                                                 // delegate2
+            );
+            break;
+
+        default:
+            throw new AssertionError(alignment);
+        }
+    }
+
+    /**
+     * Creates and returns a transformer that inserts spaces into lines shorter than <var>leftMarginWidth</var> +
+     * <var>measure</var> such that the text is right-aligned.
+     * <p>
+     *   Example (<var>leftMarginWidth</var> = 3, <var>measure</var> = 10):
+     * </p>
+     * <p>
+     *   {@code "abcdef"} => {@code "abc_______def"}
+     * </p>
+     */
+    private static Transformer<CharSequence, CharSequence>
+    alignRight(final int leftMarginWidth, final int measure) {
+
+        return new Transformer<CharSequence, CharSequence>() {
+
+            @Override public CharSequence
+            transform(CharSequence in) {
+
+                int delta = leftMarginWidth + measure - in.length();
+
+                if (delta <= 0) return in;
+
+                return (
+                    in.subSequence(0, leftMarginWidth)
+                    + StringUtil.repeat(delta, ' ')
+                    + in.subSequence(leftMarginWidth, in.length())
+                );
+            }
+        };
+    }
+
+    /**
+     * Creates and returns a transformer that inserts spaces into lines shorter than <var>leftMarginWidth</var> +
+     * <var>measure</var> such that the text is centered.
+     * <p>
+     *   Example (<var>leftMarginWidth</var> = 3, <var>measure</var> = 10):
+     * </p>
+     * <p>
+     *   {@code "abcdef"} => {@code "abc___def"}
+     * </p>
+     */
+    private static Transformer<CharSequence, CharSequence>
+    center(final int leftMarginWidth, final int measure) {
+
+        return new Transformer<CharSequence, CharSequence>() {
+
+            @Override public CharSequence
+            transform(CharSequence in) {
+
+                int delta = leftMarginWidth + measure - in.length();
+
+                if (delta <= 0) return in;
+
+                return (
+                    in.subSequence(0, leftMarginWidth)
+                    + StringUtil.repeat(delta / 2, ' ')
+                    + in.subSequence(leftMarginWidth, in.length())
+                );
+            }
+        };
+    }
+
+    /**
+     * Creates and returns a transformer that inserts spaces into lines shorter than <var>leftMarginWidth</var> +
+     * <var>measure</var> such that the text is "justified", i.e. flush left <em>and</em> flush right.
+     * <p>
+     *   Example (<var>leftMarginWidth</var> = 3, <var>measure</var> = 10):
+     * </p>
+     * <p>
+     *   {@code "abcd e f"} => {@code "abcd___e____f"}
+     * </p>
+     */
+    private static Transformer<CharSequence, CharSequence>
+    justify(final int leftMarginWidth, final int measure) {
+
+        return new Transformer<CharSequence, CharSequence>() {
+
+            @Override public CharSequence
+            transform(CharSequence in) {
+
+                int delta = leftMarginWidth + measure - in.length();
+                if (delta <= 0) return in;
+
+                int spaces = 0;
+                for (int j = leftMarginWidth; j < in.length(); j++) {
+                    if (in.charAt(j) == ' ') spaces++;
+                }
+                if (spaces == 0) return in;
+
+                // Distribute the delta evenly over the spaces.
+                StringBuilder sb = new StringBuilder(in.subSequence(0, leftMarginWidth));
+                int           x  = 0;
+                for (int j = leftMarginWidth; j < in.length(); j++) {
+                    char c = in.charAt(j);
+                    sb.append(c);
+                    if (c == ' ') {
+                        for (; x < delta; x += spaces) sb.append(' ');
+                        x -= delta;
+                    }
+                }
+                return sb.toString();
+            }
+        };
+    }
+
+    /**
+     * Creates and returns a consumer the feeds each subject it receives through the <var>transformer</var> and then
+     * passes it to the <var>delegate</var>.
+     */
+    private static <T, EX extends Throwable> ConsumerWhichThrows<T, EX>
+    consumer(
+        final TransformerWhichThrows<? super T, ? extends T, ? extends EX> transformer,
+        final ConsumerWhichThrows<? super T, ? extends EX>                 delegate
+    ) {
+
+        return new ConsumerWhichThrows<T, EX>() {
+            @Override public void consume(T subject) throws EX { delegate.consume(transformer.transform(subject)); }
+        };
     }
 
     /**
@@ -667,14 +877,14 @@ class Html2Txt {
      * @param bulleting The string produced by {@link Bulleting#next()} is placed in the left margin of the first
      *                  line generated
      */
-    private void
-    wordWrap(
-        int                            leftMarginWidth,
-        Bulleting                      bulleting,
-        int                            measure,
-        String                         text,
-        Consumer<? super CharSequence> output
-    ) throws HtmlException {
+    private <EX extends Throwable> void
+    wordWrapLeftAligned(
+        int                                                     leftMarginWidth,
+        Bulleting                                               bulleting,
+        int                                                     measure,
+        String                                                  text,
+        ConsumerWhichThrows<? super CharSequence, ? extends EX> output
+    ) throws HtmlException, EX {
 
         text = text.trim();
         if (text.length() == 0) return;
@@ -684,7 +894,7 @@ class Html2Txt {
         // From this point on, the first letter of "text" is always a non-space character.
 
         for (int nlidx = text.indexOf('\n'); nlidx != -1; nlidx = text.indexOf('\n')) {
-            this.wordWrap(leftMarginWidth, bulleting, measure, text.substring(0, nlidx), output);
+            this.wordWrapLeftAligned(leftMarginWidth, bulleting, measure, text.substring(0, nlidx), output);
             for (nlidx++; nlidx < text.length() && text.charAt(nlidx) == ' '; nlidx++);
             if (nlidx == text.length()) return;
             text = text.substring(nlidx);
@@ -856,6 +1066,7 @@ class Html2Txt {
             int                            leftMarginWidth,
             Bulleting                      bulleting,
             int                            measure,
+            Alignment                      alignment,
             Element                        element,
             Consumer<? super CharSequence> output
         ) {
@@ -875,6 +1086,7 @@ class Html2Txt {
             int                            leftMarginWidth,
             Bulleting                      bulleting,
             int                            measure,
+            Alignment                      alignment,
             Element                        element,
             Consumer<? super CharSequence> output
         ) throws HtmlException {
@@ -917,6 +1129,7 @@ class Html2Txt {
                     @Override public String next() { return numberingType.toString(this.nextValue++) + "."; }
                 },
                 measure - 5,
+                alignment,
                 XmlUtil.iterable(element.getChildNodes()),
                 output
             );
@@ -932,6 +1145,7 @@ class Html2Txt {
             int                            leftMarginWidth,
             Bulleting                      bulleting,
             int                            measure,
+            Alignment                      alignment,
             Element                        element,
             Consumer<? super CharSequence> output
         ) throws HtmlException {
@@ -941,6 +1155,7 @@ class Html2Txt {
                 bulleting,      // inlineSubelementsBulleting
                 Bulleting.NONE, // blockSubelementsBulleting
                 measure,
+                alignment,
                 XmlUtil.iterable(element.getChildNodes()),
                 output
             );
@@ -956,6 +1171,7 @@ class Html2Txt {
             int                            leftMarginWidth,
             Bulleting                      bulleting,
             int                            measure,
+            Alignment                      alignment,
             Element                        element,
             Consumer<? super CharSequence> output
         ) throws HtmlException {
@@ -1037,6 +1253,7 @@ class Html2Txt {
             int                            leftMarginWidth,
             Bulleting                      bulleting,
             int                            measure,
+            Alignment                      alignment,
             Element                        element,
             Consumer<? super CharSequence> output
         ) throws HtmlException {
@@ -1046,6 +1263,7 @@ class Html2Txt {
                 Bulleting.NONE,
                 new Bulleting() { @Override public String next() { return "*"; } },
                 measure - 3,
+                alignment,
                 XmlUtil.iterable(element.getChildNodes()),
                 output
             );
@@ -1076,6 +1294,7 @@ class Html2Txt {
             int                            leftMarginWidth,
             Bulleting                      bulleting,
             int                            measure,
+            Alignment                      alignment,
             Element                        element,
             Consumer<? super CharSequence> output
         ) throws HtmlException {
@@ -1108,6 +1327,7 @@ class Html2Txt {
             int                            leftMarginWidth,
             Bulleting                      bulleting,
             int                            measure,
+            Alignment                      alignment,
             Element                        element,
             Consumer<? super CharSequence> output
         ) {
@@ -1124,6 +1344,7 @@ class Html2Txt {
             int                            leftMarginWidth,
             Bulleting                      bulleting,
             int                            measure,
+            Alignment                      alignment,
             Element                        element,
             Consumer<? super CharSequence> output
         ) throws HtmlException {
@@ -1140,6 +1361,7 @@ class Html2Txt {
                 leftMarginWidth,
                 bulleting,
                 measure,
+                alignment,
                 element,
                 output
             );
@@ -1162,6 +1384,7 @@ class Html2Txt {
             int                            leftMarginWidth,
             Bulleting                      bulleting,
             int                            measure,
+            Alignment                      alignment,
             Element                        element,
             Consumer<? super CharSequence> output
         ) throws HtmlException {
@@ -1171,9 +1394,42 @@ class Html2Txt {
                 Bulleting.NONE,
                 Bulleting.NONE,
                 measure - this.indentation,
+                Html2Txt.getAttribute(element, "align", alignment),
                 XmlUtil.iterable(element.getChildNodes()),
                 output
             );
+        }
+    }
+
+    /**
+     * @param attributeName The name of the attribute of the <var>element</var> to process
+     * @return              The value of the attribute, or <var>defaulT</var> iff the attribute is missing, or its
+     *                      value cannot be converted to the <var>defaulT</var>'s type
+     */
+    private static <E extends Enum<E>> E
+    getAttribute(Element element, String attributeName, E defaulT) {
+
+        @SuppressWarnings("unchecked") E
+        result = Html2Txt.getAttribute(element, attributeName, (Class<E>) defaulT.getClass());
+
+        return result != null ? result : defaulT;
+    }
+
+    /**
+     * @param attributeName The name of the attribute of the <var>element</var> to process
+     * @return              The value of the attribute, or {@code null} iff the attribute is missing, or its value
+     *                      cannot be converted to the <var>enumType</var>
+     */
+    @Nullable private static <E extends Enum<E>> E
+    getAttribute(Element element, String attributeName, Class<E> enumType) {
+
+        String s = element.getAttribute(attributeName);
+        if (s == null) return null;
+
+        try {
+            return Enum.valueOf(enumType, s.toUpperCase());
+        } catch (IllegalArgumentException iae) {
+            return null;
         }
     }
 

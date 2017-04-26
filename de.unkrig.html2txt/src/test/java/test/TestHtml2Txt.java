@@ -48,6 +48,12 @@ import de.unkrig.html2txt.Html2Txt.HtmlException;
 public
 class TestHtml2Txt {
 
+    private static final String ONE_THRU_TWENTYFIVE = (
+        "one two three four five six seven eight nine ten eleven twelve thirteen fourteen\n"
+        + "      fifteen sixteen seventeen eighteen nineteen twenty twenty-one twenty-two twenty-three\n"
+        + "      twenty-four twenty-five"
+    );
+
     @Test public void
     testSimple() throws Exception {
 
@@ -493,6 +499,78 @@ class TestHtml2Txt {
             + "  </body>\n"
             + "</html>\n"
         ), new Html2Txt().setPageLeftMarginWidth(3).setPageRightMarginWidth(5).setPageWidth(9));
+    }
+
+    @Test public void
+    testAlign1() throws Exception {
+
+        TestHtml2Txt.assertHtml2Txt((
+            ""
+            + "one two three four five six seven eight nine ten eleven twelve thirteen\n"
+            + "fourteen fifteen sixteen seventeen eighteen nineteen twenty twenty-one twenty-\n"
+            + "two twenty-three twenty-four twenty-five\n"
+            + ""
+            + "        one two three four five six seven eight nine ten eleven twelve thirteen\n"
+            + " fourteen fifteen sixteen seventeen eighteen nineteen twenty twenty-one twenty-\n"
+            + "                                       two twenty-three twenty-four twenty-five\n"
+            + ""
+            + "    one two three four five six seven eight nine ten eleven twelve thirteen\n"
+            + "fourteen fifteen sixteen seventeen eighteen nineteen twenty twenty-one twenty-\n"
+            + "                   two twenty-three twenty-four twenty-five\n"
+            + ""
+            + "one  two  three four  five  six seven  eight  nine ten  eleven  twelve thirteen\n"
+            + "fourteen  fifteen sixteen seventeen eighteen nineteen twenty twenty-one twenty-\n"
+            + "two twenty-three twenty-four twenty-five\n"
+        ), (
+            ""
+            + "<html>\n"
+            + "  <body>\n"
+            + "    <div align=\"left\">"    + TestHtml2Txt.ONE_THRU_TWENTYFIVE + "</div>\n"
+            + "    <div align=\"right\">"   + TestHtml2Txt.ONE_THRU_TWENTYFIVE + "</div>\n"
+            + "    <div align=\"center\">"  + TestHtml2Txt.ONE_THRU_TWENTYFIVE + "</div>\n"
+            + "    <div align=\"justify\">" + TestHtml2Txt.ONE_THRU_TWENTYFIVE + "</div>\n"
+            + "  </body>\n"
+            + "</html>\n"
+        ));
+    }
+
+    @Test public void
+    testAlign2() throws Exception {
+
+        TestHtml2Txt.assertHtml2Txt((
+            ""
+            + "        one two three four five six seven eight nine ten eleven twelve thirteen\n"
+            + " fourteen fifteen sixteen seventeen eighteen nineteen twenty twenty-one twenty-\n"
+            + "                                       two twenty-three twenty-four twenty-five\n"
+            + ""
+            + "        one two three four five six seven eight nine ten eleven twelve thirteen\n"
+            + " fourteen fifteen sixteen seventeen eighteen nineteen twenty twenty-one twenty-\n"
+            + "                                       two twenty-three twenty-four twenty-five\n"
+            + ""
+            + "    one two three four five six seven eight nine ten eleven twelve thirteen\n"
+            + "fourteen fifteen sixteen seventeen eighteen nineteen twenty twenty-one twenty-\n"
+            + "                   two twenty-three twenty-four twenty-five\n"
+            + ""
+            + "        one two three four five six seven eight nine ten eleven twelve thirteen\n"
+            + " fourteen fifteen sixteen seventeen eighteen nineteen twenty twenty-one twenty-\n"
+            + "                                       two twenty-three twenty-four twenty-five\n"
+        ), (
+            ""
+            + "<html>\n"
+            + "  <body>\n"
+            + "    <div align=\"right\">\n"
+            + "      " + TestHtml2Txt.ONE_THRU_TWENTYFIVE + "\n"
+            + "      <div>\n"
+            + "        " + TestHtml2Txt.ONE_THRU_TWENTYFIVE + "\n"
+            + "      </div>\n"
+            + "      <div align=\"center\">\n"
+            + "        " + TestHtml2Txt.ONE_THRU_TWENTYFIVE + "\n"
+            + "      </div>\n"
+            + "      " + TestHtml2Txt.ONE_THRU_TWENTYFIVE + "\n"
+            + "    </div>\n"
+            + "  </body>\n"
+            + "</html>\n"
+        ));
     }
 
     /**

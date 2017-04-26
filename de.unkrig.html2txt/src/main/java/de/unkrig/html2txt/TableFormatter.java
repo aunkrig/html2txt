@@ -45,6 +45,7 @@ import de.unkrig.commons.lang.protocol.Producer;
 import de.unkrig.commons.lang.protocol.ProducerUtil;
 import de.unkrig.commons.nullanalysis.Nullable;
 import de.unkrig.commons.text.xml.XmlUtil;
+import de.unkrig.html2txt.Html2Txt.Alignment;
 import de.unkrig.html2txt.Html2Txt.BlockElementFormatter;
 import de.unkrig.html2txt.Html2Txt.Bulleting;
 import de.unkrig.html2txt.Html2Txt.HtmlException;
@@ -61,6 +62,7 @@ class TableFormatter implements BlockElementFormatter {
         int                            leftMarginWidth,
         Bulleting                      bulleting,
         int                            measure,
+        Alignment                      alignment,
         Element                        tableElement,
         Consumer<? super CharSequence> output
     ) throws HtmlException {
@@ -77,7 +79,7 @@ class TableFormatter implements BlockElementFormatter {
         int[] minimumColumnWidths;
         {
             int[] columnMeasures = new int[grid[0].length];
-            TableFormatter.formatCells(html2Txt, grid, columnMeasures, table.columnSeparator.length());
+            TableFormatter.formatCells(html2Txt, grid, columnMeasures, alignment, table.columnSeparator.length());
             SortedMap<Integer, SortedMap<Integer, Integer>> minimumCellWidths = TableFormatter.computeCellWidths(
                 html2Txt,
                 grid
@@ -107,7 +109,7 @@ class TableFormatter implements BlockElementFormatter {
             {
                 int[] columnMeasures = new int[grid[0].length];
                 Arrays.fill(columnMeasures, Integer.MAX_VALUE);
-                TableFormatter.formatCells(html2Txt, grid, columnMeasures, table.columnSeparator.length());
+                TableFormatter.formatCells(html2Txt, grid, columnMeasures, alignment, table.columnSeparator.length());
                 SortedMap<Integer, SortedMap<Integer, Integer>> naturalCellWidths = TableFormatter.computeCellWidths(
                     html2Txt,
                     grid
@@ -131,7 +133,7 @@ class TableFormatter implements BlockElementFormatter {
                     // We have "<table width='100%'>", so stretch the table horizontally to take up the measure
                     // entirely.
                     TableFormatter.spreadEvenly(measure - naturalTableWidth, columnWidths);
-                    TableFormatter.formatCells(html2Txt, grid, columnWidths, table.columnSeparator.length());
+                    TableFormatter.formatCells(html2Txt, grid, columnWidths, alignment, table.columnSeparator.length());
                 }
             } else {
 
@@ -140,7 +142,7 @@ class TableFormatter implements BlockElementFormatter {
                 // columns.
                 columnWidths = minimumColumnWidths;
                 TableFormatter.spreadEvenly(measure - minimumTableWidth, columnWidths);
-                TableFormatter.formatCells(html2Txt, grid, columnWidths, table.columnSeparator.length());
+                TableFormatter.formatCells(html2Txt, grid, columnWidths, alignment, table.columnSeparator.length());
             }
         }
 
@@ -277,7 +279,7 @@ class TableFormatter implements BlockElementFormatter {
      * @param columnSeparatorWidth Is needed for COLSPANned cells, because the it adds to their measure
      */
     public static void
-    formatCells(Html2Txt html2Txt, Cell[][] grid, int[] columnMeasures, int columnSeparatorWidth)
+    formatCells(Html2Txt html2Txt, Cell[][] grid, int[] columnMeasures, Alignment alignment, int columnSeparatorWidth)
     throws HtmlException {
 
         for (int rowno = 0; rowno < grid.length; rowno++) {
@@ -303,6 +305,7 @@ class TableFormatter implements BlockElementFormatter {
                     Bulleting.NONE,                     // inlineSubelementsBulleting
                     Bulleting.NONE,                     // blockSubelementsBulleting
                     columnMeasure,                      // measure
+                    alignment,                          // alignment
                     cell.childNodes,                    // nodes
                     ConsumerUtil.addToCollection(lines) // output
                 );
