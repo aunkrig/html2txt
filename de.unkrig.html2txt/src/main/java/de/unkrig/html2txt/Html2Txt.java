@@ -76,7 +76,7 @@ import de.unkrig.commons.util.collections.MapUtil;
  * Let's &lt;i>emphasize&lt;/i>.
  * &lt;ul>
  *   &lt;li>List items&lt;/li>
- *   &lt;li>must be terminated with "&lt;tt>&amp;lt;/li>&lt;/tt>".
+ *   &lt;li>must be terminated with "&lt;tt>&amp;lt;/li>&lt;/tt>".</li>
  * &lt;/ul>
  * &lt;br />
  * &lt;hr />
@@ -503,6 +503,9 @@ class Html2Txt {
 
     /**
      * Generates a plain text document from the given HTML <var>document</var>, and writes it to the {@code output}.
+     * <p>
+     *   Line breaks are created through {@link PrintWriter#println()} and are thus platform-dependent.
+     * </p>
      */
     public void
     html2txt(final Document document, Writer output) throws HtmlException {
