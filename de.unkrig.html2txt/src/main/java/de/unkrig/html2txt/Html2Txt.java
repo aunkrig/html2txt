@@ -31,6 +31,7 @@ import java.io.IOException;
 import java.io.PrintWriter;
 import java.io.Reader;
 import java.io.Writer;
+import java.lang.reflect.InvocationTargetException;
 import java.nio.charset.Charset;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -43,7 +44,6 @@ import javax.xml.parsers.DocumentBuilderFactory;
 import javax.xml.parsers.ParserConfigurationException;
 import javax.xml.transform.TransformerException;
 
-import org.w3c.dom.Attr;
 import org.w3c.dom.Document;
 import org.w3c.dom.Element;
 import org.w3c.dom.Node;
@@ -572,9 +572,9 @@ class Html2Txt {
         //     ...
         //
         // , then the result is the formatted <body>s.
-        if ("html".equals(documentElement.getNodeName())) {
+        if ("html".equalsIgnoreCase(documentElement.getNodeName())) {
             for (Node n : XmlUtil.iterable(documentElement.getChildNodes())) {
-                if (n.getNodeType() == Node.ELEMENT_NODE && "body".equals(n.getNodeName())) {
+                if (n.getNodeType() == Node.ELEMENT_NODE && "body".equalsIgnoreCase(n.getNodeName())) {
                     Element bodyElement = (Element) n;
                     this.formatBlocks(
                         this.pageLeftMarginWidth,
@@ -1054,7 +1054,7 @@ class Html2Txt {
         if (node.getNodeType() != Node.ELEMENT_NODE) return null;
         Element e = (Element) node;
 
-        return tagName.equals(e.getTagName()) ? e : null;
+        return tagName.equalsIgnoreCase(e.getTagName()) ? e : null;
     }
 
     private static final BlockElementFormatter
@@ -1087,45 +1087,29 @@ class Html2Txt {
             Bulleting                      bulleting,
             int                            measure,
             Alignment                      alignment,
-            Element                        element,
+            final Element                  element,
             Consumer<? super CharSequence> output
         ) throws HtmlException {
 
             // Determine the OL type.
             final NumberingType numberingType;
             {
-                Attr s = element.getAttributeNode("type");
-                if (s == null) {
-                    numberingType = NumberingType.ARABIC_DIGITS;
-                } else {
-                    String value = s.getValue();
-                    numberingType = (
-                        "a".equals(value) ? NumberingType.LOWERCASE_LETTERS :
-                        "A".equals(value) ? NumberingType.UPPERCASE_LETTERS :
-                        "i".equals(value) ? NumberingType.LOWERCASE_ROMAN_NUMERALS :
-                        "I".equals(value) ? NumberingType.UPPERCASE_ROMAN_LITERALS :
-                        NumberingType.ARABIC_DIGITS
-                    );
-                }
+                String s = Html2Txt.getAttribute(element, "type");
+                numberingType = (
+                    "a".equals(s) ? NumberingType.LOWERCASE_LETTERS :
+                    "A".equals(s) ? NumberingType.UPPERCASE_LETTERS :
+                    "i".equals(s) ? NumberingType.LOWERCASE_ROMAN_NUMERALS :
+                    "I".equals(s) ? NumberingType.UPPERCASE_ROMAN_LITERALS :
+                    NumberingType.ARABIC_DIGITS
+                );
             }
 
             // Compute the index to start from.
-            final int start;
-            {
-                int tmp;
-                try {
-                    tmp = Integer.parseInt(element.getAttribute("start"));
-                } catch (Exception e) {
-                    tmp = 1;
-                }
-                start = tmp;
-            }
-
             html2Txt.formatBlocks(
                 leftMarginWidth + 5,
                 Bulleting.NONE,        // inlineSubelementsBulleting
                 new Bulleting() {      // blockSubelementsBulleting
-                    int nextValue = start;
+                    int nextValue = Html2Txt.getAttribute(element, "start", 1);
                     @Override public String next() { return numberingType.toString(this.nextValue++) + "."; }
                 },
                 measure - 5,
@@ -1402,35 +1386,91 @@ class Html2Txt {
     }
 
     /**
-     * @param attributeName The name of the attribute of the <var>element</var> to process
-     * @return              The value of the attribute, or <var>defaulT</var> iff the attribute is missing, or its
-     *                      value cannot be converted to the <var>defaulT</var>'s type
+     * Retrieves the (string) value of an element attribute.
+     *
+     * @return {@code null} iff the attribute does not exist or is empty
      */
-    private static <E extends Enum<E>> E
-    getAttribute(Element element, String attributeName, E defaulT) {
+    @Nullable private static String
+    getAttribute(Element element, String attributeName) {
 
-        @SuppressWarnings("unchecked") E
-        result = Html2Txt.getAttribute(element, attributeName, (Class<E>) defaulT.getClass());
+        String s = element.getAttribute(attributeName);
+
+        return s.isEmpty() ? null : s;
+    }
+
+    /**
+     * Same as {@link #getAttribute(Element, String, Class)}, but returns the <var>defaulT</var> iff the attribute does
+     * not exist, or its value cannot be converted.
+     */
+    private static <T> T
+    getAttribute(Element element, String attributeName, T defaulT) {
+
+        @SuppressWarnings("unchecked") T
+        result = (T) Html2Txt.getAttribute(element, attributeName, defaulT.getClass());
 
         return result != null ? result : defaulT;
     }
 
     /**
-     * @param attributeName The name of the attribute of the <var>element</var> to process
-     * @return              The value of the attribute, or {@code null} iff the attribute is missing, or its value
-     *                      cannot be converted to the <var>enumType</var>
+     * Converts the value of an element attribute to the designate <var>type</var>.
+     *
+     * @param type            Must either extend {@link Enum}, or must have an accessible single-string-argument
+     *                        constructor (which includes all primitive-wrapper classes)
+     * @return                {@code null} iff the attribute does not exist, or the constructor throws an exception
+     *                        (which usually means that the string cannot be parsed)
+     * @throws AssertionError The <var>type</var> is neither an enum type, nor does it have a single-string-parameter
+     *                        constructor
+     * @throws AssertionError The <var>type</var> is not an enum type, and the single-string-parameter constructor is
+     *                        not accessible
+     * @throws AssertionError The <var>type</var> is not an enum type, and Java language access control denies access
+     *                        to the single-string-parameter constructor
+     * @see Integer#Integer(String)
      */
-    @Nullable private static <E extends Enum<E>> E
-    getAttribute(Element element, String attributeName, Class<E> enumType) {
+    @Nullable private static <T> T
+    getAttribute(Element element, String attributeName, Class<?> type) {
 
         String s = element.getAttribute(attributeName);
-        if (s == null) return null;
+        if (s.isEmpty()) return null;
+
+        if (type == String.class) {
+
+            @SuppressWarnings("unchecked") T result = (T) s;
+            return result;
+        }
+
+        if (Enum.class.isAssignableFrom(type)) {
+
+            try {
+
+                @SuppressWarnings({ "unchecked", "rawtypes" }) T
+                result = (T) Enum.valueOf((Class<? extends Enum>) type, s.toUpperCase());
+
+                return result;
+            } catch (IllegalArgumentException iae) {
+                return null;
+            }
+        }
 
         try {
-            return Enum.valueOf(enumType, s.toUpperCase());
-        } catch (IllegalArgumentException iae) {
+
+            @SuppressWarnings("unchecked") T
+            result = (T) type.getClass().getConstructor(String.class).newInstance(s);
+
+            return result;
+        } catch (InvocationTargetException ite) {
             return null;
+        } catch (Exception e) {
+            throw new AssertionError(e);
         }
+    }
+
+    /**
+     * @return Whether the value of the element attribute equals <var>expected</var> (case-insensitively)
+     */
+    private static boolean
+    attributeEquals(Element element, String attributeName, String expected) {
+
+        return expected.equalsIgnoreCase(element.getAttribute(attributeName));
     }
 
     /**
@@ -1533,9 +1573,9 @@ class Html2Txt {
 
         @Override public void
         format(Html2Txt html2Txt, Element element, StringBuilder output) throws HtmlException {
-            String name = element.getAttribute("name");
-            String href = element.getAttribute("href");
-            if (!name.isEmpty() && href.isEmpty()) {
+            String name = Html2Txt.getAttribute(element, "name");
+            String href = Html2Txt.getAttribute(element, "href");
+            if (name != null && href == null) {
                 if (!html2Txt.getBlock(XmlUtil.iterable(element.getChildNodes())).isEmpty()) {
                     html2Txt.htmlErrorHandler.warning(
                         new HtmlException(element, "'<a name=\"...\" />' tag should not have content")
@@ -1545,7 +1585,7 @@ class Html2Txt {
                 // '<a name="..." />' renders as "".
                 ;
             } else
-            if (!href.isEmpty() && name.isEmpty()) {
+            if (href != null && name == null) {
                 output.append(html2Txt.getBlock(XmlUtil.iterable(element.getChildNodes())));
                 if (Html2Txt.RELEVANT_HREF_PATTERN.matcher(href).matches()) {
                     output.append(" (see \"").append(href).append("\")");
@@ -1567,8 +1607,8 @@ class Html2Txt {
 
             output.append(html2Txt.getBlock(XmlUtil.iterable(element.getChildNodes())));
 
-            String title = element.getAttribute("title");
-            if (!title.isEmpty()) {
+            String title = Html2Txt.getAttribute(element, "title");
+            if (title != null) {
                 output.append(" (\"").append(title).append("\")");
             }
         }
@@ -1605,25 +1645,23 @@ class Html2Txt {
         @Override public void
         format(Html2Txt html2Txt, Element element, StringBuilder output) {
 
-            String type = element.getAttribute("type");
-            if ("checkbox".equals(type)) {
-                output.append("checked".equals(element.getAttribute("checked")) ? "[x]" : "[ ]");
+            String type = Html2Txt.getAttribute(element, "type");
+            if ("checkbox".equalsIgnoreCase(type)) {
+                output.append(Html2Txt.attributeEquals(element, "checked", "checked") ? "[x]" : "[ ]");
             } else
-            if ("hidden".equals(type)) {
+            if ("hidden".equalsIgnoreCase(type)) {
                 ;
             } else
-            if ("password".equals(type)) {
+            if ("password".equalsIgnoreCase(type)) {
                 output.append("[******]");
             } else
-            if ("radio".equals(type)) {
-                output.append("checked".equals(element.getAttribute("checked")) ? "(o)" : "( )");
+            if ("radio".equalsIgnoreCase(type)) {
+                output.append(Html2Txt.attributeEquals(element, "checked", "checked") ? "(o)" : "( )");
             } else
-            if ("submit".equals(type)) {
-                String label = element.getAttribute("value");
-                if (label.isEmpty()) label = "Submit";
-                output.append("[ ").append(label).append(" ]");
+            if ("submit".equalsIgnoreCase(type)) {
+                output.append("[ ").append(Html2Txt.getAttribute(element, "value", "Submit")).append(" ]");
             } else
-            if ("text".equals(type) || "".equals(type)) {
+            if ("text".equalsIgnoreCase(type) || type == null) {
                 output.append('[').append(element.getAttribute("value")).append(']');
             } else
             {
@@ -1638,12 +1676,12 @@ class Html2Txt {
         @Override public void
         format(Html2Txt html2Txt, Element element, StringBuilder output) throws HtmlException {
 
-            final String cite = element.getAttribute("cite");
-
             output.append('"');
             output.append(html2Txt.getBlock(XmlUtil.iterable(element.getChildNodes())));
             output.append("\"");
-            if (!cite.isEmpty()) output.append(" (").append(cite).append(')');
+
+            final String cite = Html2Txt.getAttribute(element, "cite");
+            if (cite != null) output.append(" (").append(cite).append(')');
         }
     };
 
