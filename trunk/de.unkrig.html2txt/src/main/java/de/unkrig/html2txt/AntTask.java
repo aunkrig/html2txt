@@ -87,7 +87,7 @@ class AntTask extends Task {
     setTodir(File value) { this.todir = value; }
 
     /**
-     * The number of spaces that preceeds each line of output.
+     * The number of spaces that precedes each line of output.
      *
      * @ant.defaultValue 0
      */
