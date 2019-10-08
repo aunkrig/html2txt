@@ -393,7 +393,7 @@ class Html2Txt {
          * Etc.
          */
         UPPERCASE_ROMAN_LITERALS {
-            @Override public long   parse(String s)      { return LOWERCASE_ROMAN_NUMERALS.parse(s); }
+            @Override public long   parse(String s)      { return LOWERCASE_ROMAN_NUMERALS.parse(s);                 }
             @Override public String toString(long value) { return LOWERCASE_ROMAN_NUMERALS.toString().toUpperCase(); }
         },
 
@@ -402,7 +402,7 @@ class Html2Txt {
          * @see Long#toString(long)
          */
         ARABIC_DIGITS {
-            @Override public long   parse(String s)      { return Long.parseLong(s); }
+            @Override public long   parse(String s)      { return Long.parseLong(s);    }
             @Override public String toString(long value) { return Long.toString(value); }
         };
 
